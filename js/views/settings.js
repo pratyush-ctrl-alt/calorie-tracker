@@ -36,13 +36,24 @@ export function createSettingsView() {
 
   const values = () => ({ url: url.value, key: key.value, token: token.value });
 
+  // Pasted secrets are dots, so mistakes are invisible. Let the user reveal them and see their lengths.
+  const lenHint = h('p', { class: 'hint' });
+  const updLen = () => { lenHint.textContent = `Key: ${key.value.trim().length} characters \u00b7 Token: ${token.value.trim().length} characters`; };
+  key.addEventListener('input', updLen);
+  token.addEventListener('input', updLen);
+  updLen();
+  const showBox = h('input', { type: 'checkbox', onchange: (e) => { for (const i of [key, token]) i.type = e.target.checked ? 'text' : 'password'; } });
+  const revealRow = h('div', { class: 'reveal' }, h('label', { class: 'check' }, showBox, h('span', {}, 'Show key and token')), lenHint);
+
   async function test() {
     connStatus.className = 'hint';
     connStatus.textContent = 'Testing\u2026';
     try {
       const r = await store.testConnection(values());
+      const saved = store.getConn();
+      const same = saved.url === url.value.trim() && saved.key === key.value.trim() && saved.token === token.value.trim();
       connStatus.className = 'ok-text';
-      connStatus.textContent = `Connected. ${r.name ?? 'Database'} is ready.`;
+      connStatus.textContent = `Connected. ${r.name ?? 'Database'} is ready.${same ? '' : ' These values are not saved yet: tap Save connection.'}`;
     } catch (e) {
       connStatus.className = 'warn-text';
       connStatus.textContent = e.message;
@@ -64,7 +75,7 @@ export function createSettingsView() {
   const connCard = h('div', { class: 'card' },
     h('h2', { class: 'card-title' }, 'Database connection (Supabase)'),
     h('p', { class: 'muted small' }, 'Stored only on this phone. Leave all three empty to use Demo mode. Never paste the "service_role" or "secret" key here.'),
-    field('Project URL', url), field('Public key (anon / publishable)', key), field('Token', token),
+    field('Project URL', url), field('Public key (anon / publishable)', key), field('Token', token), revealRow,
     h('div', { class: 'row-btns' },
       h('button', { class: 'btn', type: 'button', onclick: test }, 'Test connection'),
       h('button', { class: 'btn primary', type: 'button', onclick: saveConnection }, 'Save connection')),
