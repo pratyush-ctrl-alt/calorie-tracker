@@ -4,14 +4,13 @@
 //
 // parseLog(text, opts) -> { results, entries, errors }
 //   opts.now      Date (or an hour number) used to guess a missing slot. Default: new Date()
-//   opts.items    saved quick items [{name, kcal, protein_g, carbs_g, fat_g, fibre_g, default_slot, on_plan, aliases}]
-//   opts.plan     plan-menu rows (default: PLAN_MENU)
+//   opts.items    saved items [{name, kcal, protein_g, carbs_g, fat_g, fibre_g, default_slot, on_plan, aliases}]
 //   opts.settings settings object holding the kenko_* values (default: DEFAULT_SETTINGS)
 //
 // Each parsed entry: { name, slot, slotGuessed, kcal, protein_g, carbs_g, fat_g, fibre_g,
 //                      source, on_plan, group }. A null macro means "unknown", never zero.
 
-import { PLAN_MENU, DEFAULT_SETTINGS, SLOTS } from './plan.js';
+import { DEFAULT_SETTINGS, SLOTS } from './plan.js';
 
 const SLOT_WORDS = {
   bf: 'Breakfast', breakfast: 'Breakfast',
@@ -100,7 +99,7 @@ export function parseNutrientField(field) {
   return null;
 }
 
-// ---- shortcuts (saved items, plan options, kenko) ---------------------------
+// ---- shortcuts (saved items, and a built-in "kenko" if you have not saved one) ----
 
 const norm = (s) => String(s ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
 
@@ -111,12 +110,11 @@ function aliasList(a) {
 
 function buildLookup(opts) {
   const map = new Map();
-  for (const p of opts.plan ?? PLAN_MENU) map.set(norm(p.name), { type: 'plan', data: p });
   for (const it of opts.items ?? []) {
     map.set(norm(it.name), { type: 'item', data: it });
     for (const a of aliasList(it.aliases)) map.set(a, { type: 'item', data: it });
   }
-  map.set('kenko', { type: 'kenko', data: null });
+  if (!map.has('kenko')) map.set('kenko', { type: 'kenko', data: null }); // a saved item called "kenko" wins
   return map;
 }
 
@@ -131,9 +129,6 @@ function shortcutEntry(hit, slot, hour, opts) {
       carbs_g: numOrNull(s.kenko_carbs_g), fat_g: numOrNull(s.kenko_fat_g), fibre_g: numOrNull(s.kenko_fibre_g),
       default_slot: 'Dinner', source: 'kenko', on_plan: true, group: '',
     };
-  } else if (hit.type === 'plan') {
-    const p = hit.data;
-    base = { ...p, source: 'plan', on_plan: true };
   } else {
     const it = hit.data;
     base = {

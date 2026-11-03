@@ -61,7 +61,7 @@ From now on, every change on `main` is published by Netlify automatically.
    - **Public key**: from A4
    - **Token**: from A2
 3. Tap **Test connection**. You should see "Connected. Plate Log database is ready."
-4. Tap **Save connection**. The Demo banner disappears and the chip at the top says "Saved".
+4. Tap **Save connection**. The Demo banner disappears and the chip at the top says "Saved". The Database section then folds into a single row; tap it any time to open it again.
 5. **Add to the home screen:**
    - iPhone (Safari): Share button → **Add to Home Screen**.
    - Android (Chrome): ⋮ menu → **Add to Home screen** / **Install app**.
@@ -78,7 +78,16 @@ From now on, every change on `main` is published by Netlify automatically.
 
 ---
 
-## Part D. Good to know
+## Part D. Updating the database after an app update
+
+Some app updates need a small database change (for example favourites in My Items). When that happens the app says so: Settings shows **"Update needed"** next to Database, and My Items shows a notice. The fix takes a minute and keeps all your data:
+1. Open [`supabase/schema.sql`](supabase/schema.sql), copy the whole file.
+2. Supabase → **SQL Editor** → **New query**, paste it and press **Run**. You do **not** need to edit the token line again: it keeps the token you already set.
+3. Back in the app, tap **Sync now** in Settings. "Update needed" disappears.
+
+---
+
+## Part E. Good to know
 
 - **Free projects pause** after about a week with no use. Nothing is lost: entries you add meanwhile wait on the phone and sync after you restore the project in the dashboard. Opening the app every few days avoids it.
 - **Backups:** don't rely on the free plan for them. Every month or so, use **Settings → Download CSV** and keep the file.

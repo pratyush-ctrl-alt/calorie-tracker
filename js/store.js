@@ -6,7 +6,7 @@
 //  * Demo mode (no URL): everything stays in a separate local namespace and nothing is ever sent.
 
 import * as api from './api.js';
-import { DEFAULT_SETTINGS } from './plan.js';
+import { DEFAULT_SETTINGS, MAX_FAVORITES } from './plan.js';
 import { normalizeEntry, normalizeItem, buildEntry } from './entries.js';
 import { addDays, todayStr, uuid } from './util.js';
 import { DEMO_ITEMS, sampleEntries } from './demo.js';
@@ -114,6 +114,48 @@ export function entriesBetween(from, to) {
 }
 export const entriesOn = (date) => entriesBetween(date, date);
 export const getEntry = (id) => data.entries[id] ?? null;
+
+// ---- My Items: favourites and "most used" ---------------------------------------
+/** True when the database has not had the favourites update yet (re-run supabase/schema.sql). */
+export const schemaOutdated = () => !isDemo() && typeof data.schema === 'number' && data.schema < 2;
+
+const baseName = (n) => String(n ?? '').replace(/\s\u00d7[\d.]+$/, '').trim().toLowerCase(); // "Banana \u00d72" counts as "banana"
+
+/** Map of lower-case item name -> how many entries used it (last 120 days kept on the phone). */
+export function usageCounts() {
+  const m = new Map();
+  for (const e of allEntries()) if (!e.deleted) m.set(baseName(e.name), (m.get(baseName(e.name)) ?? 0) + 1);
+  return m;
+}
+
+/** My Items, pinned first, then most used, then A to Z. */
+export function sortedItems() {
+  const use = usageCounts();
+  const n = (i) => use.get(i.name.trim().toLowerCase()) ?? 0;
+  return data.items.slice().sort((a, b) => Number(b.favorite) - Number(a.favorite) || n(b) - n(a) || a.name.localeCompare(b.name))
+    .map((item) => ({ item, uses: n(item) }));
+}
+
+/** What "Quick add" shows: pinned items first, then the most used ones to fill up to 5. */
+export function quickItems(max = MAX_FAVORITES) {
+  const ranked = sortedItems();
+  const pinned = ranked.filter((r) => r.item.favorite).slice(0, max).map((r) => ({ item: r.item, pinned: true }));
+  const fill = ranked.filter((r) => !r.item.favorite && r.uses > 0).slice(0, Math.max(0, max - pinned.length))
+    .map((r) => ({ item: r.item, pinned: false }));
+  return [...pinned, ...fill];
+}
+
+/** Pin or unpin. Returns {ok:true} or {ok:false, reason} (plain English). */
+export function setFavorite(name, on) {
+  if (schemaOutdated()) return { ok: false, reason: 'Run the updated supabase/schema.sql in Supabase to turn on favourites (see SETUP.md).' };
+  const it = data.items.find((x) => x.name.toLowerCase() === name.toLowerCase());
+  if (!it) return { ok: false, reason: 'That item no longer exists.' };
+  if (on && data.items.filter((x) => x.favorite && x !== it).length >= MAX_FAVORITES) {
+    return { ok: false, reason: `You can pin up to ${MAX_FAVORITES} items. Unpin one first.` };
+  }
+  saveItem({ ...it, favorite: on });
+  return { ok: true };
+}
 
 // ---- sync status -------------------------------------------------------------
 export function syncStatus() {
@@ -271,6 +313,7 @@ export async function refresh() {
     if (!queue.some((o) => o.op === 'saveSettings')) data.settings = cfg.settings ?? {};
     if (!queue.some((o) => o.op === 'saveItem' || o.op === 'deleteItem')) data.items = (cfg.items ?? []).map(normalizeItem);
 
+    data.schema = typeof cfg.schema === 'number' ? cfg.schema : 1;
     data.fetchedAt = Date.now();
     lastFail = false;
     lastError = '';
@@ -278,6 +321,7 @@ export async function refresh() {
     lastSyncAt = Date.now();
     persist();
     emit('data');
+    seedKenkoItem();
   } catch (err) {
     lastFail = !!err.network;
     lastError = err.message;
@@ -286,6 +330,22 @@ export async function refresh() {
     refreshing = false;
     emit('sync');
   }
+}
+
+/**
+ * The Kenko box used to be a special button. It is now an ordinary item in My Items, created once per
+ * device from the Kenko values currently in Settings (so values you already edited carry over).
+ */
+function seedKenkoItem() {
+  if (isDemo() || ls.get('plate.seeded.kenko', false)) return;
+  ls.set('plate.seeded.kenko', true);
+  if (data.items.some((i) => i.name.toLowerCase() === 'kenko meal')) return;
+  const st = getSettings();
+  saveItem({
+    name: 'Kenko meal', kcal: st.kenko_kcal, protein_g: st.kenko_protein_g, carbs_g: st.kenko_carbs_g,
+    fat_g: st.kenko_fat_g, fibre_g: st.kenko_fibre_g, default_slot: 'Dinner', on_plan: true, aliases: 'kenko',
+    favorite: !schemaOutdated(),
+  });
 }
 
 /** Run on app open, focus, back-online and a timer: push anything waiting, then pull the database. */

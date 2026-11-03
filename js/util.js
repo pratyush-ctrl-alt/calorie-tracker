@@ -21,7 +21,16 @@ export const isYmd = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s));
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const DAYS_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 export const dayName = (s) => DAYS[parseYmd(s).getDay()];
+export const fmtFullDate = (s) => { const d = parseYmd(s); return `${DAYS_LONG[d.getDay()]}, ${d.getDate()} ${MONTHS_LONG[d.getMonth()]}`; };
+/** "21:55" -> "9:55 PM"; anything unparseable -> "". */
+export function fmtTime12(t) {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(t ?? ''));
+  if (!m) return '';
+  const hr = Number(m[1]);
+  return `${hr % 12 || 12}:${m[2]} ${hr >= 12 ? 'PM' : 'AM'}`;
+}
 export const fmtShort = (s) => { const d = parseYmd(s); return `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`; };
 export const fmtLong = (s) => { const d = parseYmd(s); return `${DAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`; };
 export const fmtDayMonth = (s) => { const d = parseYmd(s); return `${d.getDate()} ${MONTHS[d.getMonth()]}`; };

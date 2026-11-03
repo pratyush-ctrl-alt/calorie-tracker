@@ -101,13 +101,10 @@ test('8. a saved item name or alias logs that item', () => {
   assert.equal(one('Dinner | coffee', { items }).slot, 'Dinner', 'explicit slot wins');
 });
 
-test('8b. a plan-menu option name logs that option', () => {
-  const e = one('veg thali');
-  assert.equal(e.name, 'Veg thali');
-  assert.equal(e.source, 'plan');
-  assert.equal(e.group, 'Treat');
-  assert.equal(e.on_plan, true);
-  assert.equal(e.kcal, 760);
+test('8b. plan-menu names are no longer shortcuts (the plan menu was removed)', () => {
+  const r = parseLog('veg thali', { now: at(13) });
+  assert.equal(r.entries.length, 0);
+  assert.equal(r.errors.length, 1);
 });
 
 test('9. kenko alone gives the Kenko meal', () => {
@@ -121,6 +118,15 @@ test('9. kenko alone gives the Kenko meal', () => {
   const custom = one('Kenko', { settings: { kenko_kcal: 600, kenko_protein_g: 52 } });
   assert.equal(custom.kcal, 600);
   assert.equal(custom.protein_g, 52);
+});
+
+test('9b. a saved item called "Kenko meal" (alias kenko) wins over the built-in one', () => {
+  const items = [{ name: 'Kenko meal', kcal: 600, protein_g: 55, carbs_g: 60, fat_g: 23, fibre_g: 8, default_slot: 'Dinner', on_plan: true, aliases: 'kenko' }];
+  const e = one('kenko', { items });
+  assert.equal(e.source, 'saved');
+  assert.equal(e.kcal, 600);
+  assert.equal(e.fat_g, 23);
+  assert.equal(e.on_plan, true);
 });
 
 test('10. fibre/fiber/fib and kcal/cal/calories spellings', () => {

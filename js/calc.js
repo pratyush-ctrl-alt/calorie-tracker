@@ -4,7 +4,6 @@
 // totals, but the day is marked `missing`. Counts are over LOGGED days only: a day with no entries
 // is "not logged" and never counted as met or missed.
 
-import { TREAT_GROUPS } from './plan.js';
 import { addDays, parseYmd, ymd, round1 } from './util.js';
 
 export function totalsFor(entries) {
@@ -26,7 +25,6 @@ export function totalsFor(entries) {
 export const kcalOnTarget = (kcal, s) => Math.abs(kcal - s.calorie_target) <= (s.calorie_target * s.calorie_band_pct) / 100;
 export const proteinHit = (p, s) => p >= s.protein_hit_g;
 export const fatOver = (f, s) => f > s.fat_limit_g;
-export const isTreat = (e) => TREAT_GROUPS.includes(e.group);
 
 /** Status of one day. `entries` are that day's entries (deleted ones are ignored). */
 export function dayStatus(date, entries, s) {
@@ -40,7 +38,6 @@ export function dayStatus(date, entries, s) {
     fatOver: logged && fatOver(totals.fat, s),
     offPlan: live.some((e) => !e.on_plan),
     missing: logged && totals.missing,
-    treats: live.filter(isTreat).length,
   };
 }
 
@@ -67,7 +64,6 @@ export function summarize(dates, byDate, s) {
     proteinOk: logged.filter((d) => d.proteinOk).length,
     fatOver: logged.filter((d) => d.fatOver).length,
     offPlanDays: logged.filter((d) => d.offPlan).length,
-    treats: sum((d) => d.treats),
     avgKcal: logged.length ? Math.round(sum((d) => d.totals.kcal) / logged.length) : null,
     avgProtein: logged.length ? round1(sum((d) => d.totals.protein) / logged.length) : null,
   };

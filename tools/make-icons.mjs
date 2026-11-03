@@ -1,10 +1,11 @@
 // Generates the PNG icons with no dependencies:  node tools/make-icons.mjs
-// A white plate (ring + inner disc) on the app's green. Full-bleed, so it also works as a maskable icon.
+// Three Activity-style rings on black. Full-bleed, so it also works as a maskable icon.
 import { deflateSync } from 'node:zlib';
 import { writeFileSync, mkdirSync } from 'node:fs';
 
-const BG = [47, 111, 90];
-const FG = [255, 255, 255];
+const BG = [0, 0, 0];
+// three concentric rings in the app's metric colours (calories, protein, fibre)
+const RINGS = [[255, 55, 95], [164, 255, 46], [100, 210, 255]];
 
 function crc32(buf) {
   let c, crc = 0xffffffff;
@@ -25,20 +26,21 @@ function chunk(type, data) {
 function render(size, scale) {
   const raw = Buffer.alloc((size * 4 + 1) * size);
   const c = size / 2;
-  const ring = [0.30 * scale * size, 0.355 * scale * size]; // inner/outer radius of the rim
-  const disc = 0.215 * scale * size;
+  const thick = 0.085 * scale * size;
+  const radii = [0.36, 0.265, 0.17].map((r) => r * scale * size);
   const SS = 3;
   for (let y = 0; y < size; y++) {
     raw[y * (size * 4 + 1)] = 0;
     for (let x = 0; x < size; x++) {
-      let cover = 0;
+      const acc = [0, 0, 0];
       for (let sy = 0; sy < SS; sy++) for (let sx = 0; sx < SS; sx++) {
         const r = Math.hypot(x + (sx + 0.5) / SS - c, y + (sy + 0.5) / SS - c);
-        if ((r >= ring[0] && r <= ring[1]) || r <= disc) cover++;
+        let col = BG;
+        radii.forEach((rad, i) => { if (Math.abs(r - rad) <= thick / 2) col = RINGS[i]; });
+        for (let k = 0; k < 3; k++) acc[k] += col[k];
       }
-      const a = cover / (SS * SS);
       const o = y * (size * 4 + 1) + 1 + x * 4;
-      for (let i = 0; i < 3; i++) raw[o + i] = Math.round(BG[i] * (1 - a) + FG[i] * a);
+      for (let k = 0; k < 3; k++) raw[o + k] = Math.round(acc[k] / (SS * SS));
       raw[o + 3] = 255;
     }
   }

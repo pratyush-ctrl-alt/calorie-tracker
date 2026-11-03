@@ -15,6 +15,16 @@ Most meals arrive as a single line of text that another AI (Gemini, ChatGPT or C
 - **Never lose an entry:** every write goes to a local pending queue first, then to the database. The screens render instantly from a local cache of the last 120 days and refresh from the database. The chip in the header shows "Saved", "2 waiting to sync" or "Can't reach database, will retry". Writes are upserts by a client-generated id, so a retried request never makes a duplicate row.
 - **Demo mode:** with no project URL set, the app shows a labelled sample week and keeps anything you add on the phone only. Nothing in Demo mode is ever sent to the database.
 
+## The screens
+
+Tabs: **Today · Log · My Items · Trends · Settings** (naming borrowed from fitness trackers such as Hevy).
+
+- **Today:** "Left today" as two big numbers (kcal left, g protein to go), Activity-style rings for calories, protein and fibre, tiles for fat and carbs, a Quick add row and the day's meals.
+- **Log:** paste a line (or type a saved item's name), check the preview, save. Also Quick add, and "Enter numbers" for manual entries.
+- **My Items:** everything you save, with search. Star up to 5 to pin them to Quick add; your most used items fill any free spots.
+- **Trends:** the last 7 days (scorecard, charts, day by day) or a month (week by week, off-plan list).
+- **Settings:** the database connection (collapses once connected), daily targets, CSV export.
+
 Setup steps are in [SETUP.md](SETUP.md).
 
 ## The log line
@@ -78,17 +88,27 @@ Where the brief was ambiguous I picked the simplest option. Say if you want any 
 - **Backups.** Use Settings, Download CSV now and then; do not rely on the free plan for backups.
 - **Old setup dropped.** If a phone still holds an old Apps Script URL, the app ignores it and starts in Demo mode.
 
+### Design and navigation (version 2)
+
+- **Look:** Apple Health / Fitness inspired: true black in dark mode, grouped rounded lists, translucent bars, large titles that collapse into the bar, iOS-style switches and segmented controls, system-blue buttons, and the Activity-ring colours for the metrics (calories pink-red, protein lime, fibre cyan, fat yellow, carbs purple). Light and dark follow the phone. No emoji icons.
+- **Plan menu removed** (you were not using it). Everything you eat that you repeat goes into My Items.
+- **Quick add** shows your starred items first (at most 5; the database enforces the limit too), then fills free spots with your most used items over the last 120 days.
+- **No Paste button.** The keyboard already offers Paste. A small Clear link appears once there is text.
+- **Week and Month are now one tab, Trends**, with a Last 7 days / Month switch.
+- **Database section in Settings** opens by itself only in Demo mode or when something is wrong; when connected it is a single row you can tap to open.
+- **Favourites need a one-time database update** (re-run `supabase/schema.sql`; safe, keeps your data). Until then the app shows a clear notice, pins are refused with an explanation, and Quick add falls back to your most used items.
+
 ### Behaviour
 
-- **Today's remaining numbers.** Calories follow the spec ("Left today: X kcal" / "Over by X kcal"). For protein, once the target is passed I show "protein target met" rather than "Over by X g", since exceeding protein is not a problem. When calories are over but protein is not yet reached it reads "Over by 120 kcal · 52 g protein left".
-- **Carbs on Today** is a grams-only row with no bar, since there is no carbs target.
+- **Today's remaining numbers.** Two big numbers: kcal left (turning orange and reading "kcal over target" when over) and g protein to go. Once the protein target is reached the second number becomes "Met" rather than "over", since exceeding protein is not a problem.
+- **Carbs on Today** is a grams-only tile with no bar, since there is no carbs target.
 - **Week and Month use complete days only.** Today is shown separately as "in progress" on Week. For Month I applied the same rule (my choice; the brief only states it for Week): today is not counted in the week-by-week table or averages, but today's off-plan entries do appear in the Off-plan list. "Days logged" is shown as X/Y where Y is the number of finished days in that period.
 - **Month weeks** run Monday to Sunday, clipped to the month, and are labelled by date range. The Total row's averages are over all logged days, not an average of the weekly averages.
 - **Calorie band edges.** "Within ±10%" is exact: 1,833.3 to 2,240.7 kcal, so a day of 1,833 kcal is just outside and 2,240 is just inside. The brief rounds this to 1,833 to 2,241.
-- **Treats** counts entries whose group is Treat or Ice cream, one per entry regardless of quantity. Entries logged by typing a plan option's name or from the Plan menu carry the group; hand-typed lines do not.
-- **Quantity chips** scale all values (unknown stays unknown) and add a suffix such as "×1.5" to the name.
-- **Parser details.** A line with no `|` that matches nothing gets "needs kcal and protein"; nutrients but no dish name gets "needs a dish name"; a nutrient given twice keeps the first with a note; shortcuts also work with an explicit slot (`Snack | coffee`); saved items beat plan-menu names and `kenko` always means the Kenko meal; values round to 1 decimal place.
-- **Kenko.** Logged as "Kenko meal" with source `kenko`, on_plan TRUE; the optional note goes into the `note` column. On Sundays the card starts collapsed. If one is already logged today the card shows "logged" with Undo (a soft delete).
+- **Treats are gone.** They came from the plan menu, which was removed, so the scorecards no longer have a Treats column.
+- **Quick log** (tap any item) has meal, quantity (×0.5, ×1, ×1.5, ×2) and an optional note. Quantity scales all values (unknown stays unknown) and adds a suffix such as "×1.5" to the name; usage counts treat "Banana ×2" as "Banana".
+- **Parser details.** A line with no `|` that matches nothing gets "needs kcal and protein"; nutrients but no dish name gets "needs a dish name"; a nutrient given twice keeps the first with a note; shortcuts also work with an explicit slot (`Snack | coffee`); a saved item called Kenko (or with the shortcut word `kenko`) wins over the built-in Kenko values; values round to 1 decimal place.
+- **Kenko is an ordinary item.** The first time a device connects, a "Kenko meal" item (shortcut word `kenko`, starred) is created in My Items from the Kenko values in Settings at that moment, so values you already edited carry over. Edit it in My Items like any other item. Older entries that were logged with the old Kenko button keep working.
 - **Time and dates.** New entries get the phone's current time even when backfilling. No future dates: the pickers stop at today.
 - **Sync rules.** Queued writes are merged per entry id before sending (latest edit wins); if a batch is rejected, entries are retried one by one so a single bad entry cannot block the rest; the database ignores an incoming update that is older than what it holds. Retries run on app open, focus, coming back online, after each entry, and every 30 s while something is waiting. A wrong token, key or URL keeps the queue and shows "Database problem, see Settings" with the reason there.
 - **Demo mode** keeps its own storage, separate from live data and the queue, with a "Reset sample data" button.

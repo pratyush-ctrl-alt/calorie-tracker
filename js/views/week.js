@@ -33,12 +33,12 @@ export function createWeekView() {
       h('p', { class: 'muted small' }, 'Today is not part of the scorecard below until it is over.'));
 
     const score = h('div', { class: 'card' },
-      h('h2', { class: 'card-title' }, 'Last 7 days'),
+      h('h2', { class: 'card-title' }, 'Scorecard'),
       h('p', { class: 'muted small' }, `${fmtShort(dates[0])} to ${fmtShort(dates[6])}. Counts are over logged days only.`),
       h('div', { class: 'scroll' }, h('table', { class: 'tbl score' },
-        h('thead', {}, h('tr', {}, ['Days logged', 'Calories on target', 'Protein hit', 'Fat over limit', 'Off-plan days', 'Treats'].map((t) => h('th', { scope: 'col' }, t)))),
+        h('thead', {}, h('tr', {}, ['Days logged', 'Calories on target', 'Protein hit', 'Fat over limit', 'Off-plan days'].map((t) => h('th', { scope: 'col' }, t)))),
         h('tbody', {}, h('tr', {}, [
-          `${sum.daysLogged}/7`, sum.kcalOk, sum.proteinOk, sum.fatOver, sum.offPlanDays, sum.treats,
+          `${sum.daysLogged}/7`, sum.kcalOk, sum.proteinOk, sum.fatOver, sum.offPlanDays,
         ].map((v) => h('td', { class: 'num strong' }, String(v))))))));
 
     const rows = sum.days.slice().reverse().flatMap((d) => [
@@ -62,7 +62,7 @@ export function createWeekView() {
       barChart({
         days: sum.days.map((d) => ({ date: d.date, value: d.logged ? d.totals.kcal : null })),
         band, line: s.calorie_target, unit: 'kcal',
-        isGood: (v) => v >= band.lo && v <= band.hi, label: 'Calories per day for the last 7 days, with the target band shaded',
+        isGood: (v) => v >= band.lo && v <= band.hi, kind: 'kcal', label: 'Calories per day for the last 7 days, with the target band shaded',
       }),
       h('p', { class: 'muted small' }, `Shaded band: ${fmt(band.lo, 0)} to ${fmt(band.hi, 0)} kcal (target ±${s.calorie_band_pct}%). Green bars are inside it.`));
     const protChart = h('div', { class: 'card' },
@@ -70,11 +70,11 @@ export function createWeekView() {
       barChart({
         days: sum.days.map((d) => ({ date: d.date, value: d.logged ? d.totals.protein : null })),
         line: s.protein_target_g, unit: 'g',
-        isGood: (v) => v >= s.protein_hit_g, label: 'Protein per day for the last 7 days, with the target line',
+        isGood: (v) => v >= s.protein_hit_g, kind: 'protein', label: 'Protein per day for the last 7 days, with the target line',
       }),
       h('p', { class: 'muted small' }, `Dashed line: target ${fmt(s.protein_target_g, 0)} g. Green bars reached the ${fmt(s.protein_hit_g, 0)} g "protein hit" mark.`));
 
-    el.replaceChildren(inProgress, score, table, kcalChart, protChart);
+    el.replaceChildren(inProgress, score, kcalChart, protChart, table);
   }
 
   return { el, update: render, onShow: render };

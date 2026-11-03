@@ -52,14 +52,6 @@ test('an unlogged day is never counted as met or missed', () => {
   assert.equal(sum.days[0].kcalOk, false);
 });
 
-test('treats count Treat and Ice cream group entries only', () => {
-  const byDate = groupByDate([
-    E('2026-11-01', { group: 'Treat' }), E('2026-11-01', { group: 'Ice cream' }),
-    E('2026-11-01', { group: 'Lunch' }), E('2026-11-01', { group: '' }),
-  ]);
-  assert.equal(summarize(['2026-11-01'], byDate, S).treats, 2);
-});
-
 test('week window is the 7 full days before today', () => {
   const w = weekWindow('2026-11-02');
   assert.equal(w.length, 7);

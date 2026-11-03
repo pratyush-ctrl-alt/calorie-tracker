@@ -1,17 +1,13 @@
-import { h, todayStr, addDays, fmt } from '../util.js';
-import { DEFAULT_SETTINGS, SLOTS } from '../plan.js';
+import { h, todayStr, addDays } from '../util.js';
+import { DEFAULT_SETTINGS } from '../plan.js';
 import { LOG_HEADERS, numOrNull } from '../entries.js';
-import { field, numInput, openSheet, slotSelect, toast } from '../components.js';
+import { field, largeTitle, numInput, toast } from '../components.js';
 import * as store from '../store.js';
 
 const TARGETS = [
   ['calorie_target', 'Calorie target (kcal)'], ['protein_target_g', 'Protein target (g)'],
   ['calorie_band_pct', 'Calorie band (± %)'], ['protein_hit_g', 'Protein "hit" at (g)'],
   ['fat_limit_g', 'Fat limit (g)'], ['fibre_target_g', 'Fibre target (g)'],
-];
-const KENKO = [
-  ['kenko_kcal', 'Kenko kcal'], ['kenko_protein_g', 'Kenko protein (g)'], ['kenko_carbs_g', 'Kenko carbs (g)'],
-  ['kenko_fat_g', 'Kenko fat (g)'], ['kenko_fibre_g', 'Kenko fibre (g)'],
 ];
 
 function csvCell(v) {
@@ -26,28 +22,28 @@ export function toCsv(entries) {
 export function createSettingsView() {
   const el = h('section', { class: 'view', id: 'view-settings', 'aria-label': 'Settings' });
   const conn = store.getConn();
+  const ui = { connOpen: null }; // null = decide automatically (open only when not connected or something is wrong)
 
-  // ---- connection ----------------------------------------------------------------------
+  // ---- database connection (collapsible) -------------------------------------------------------
   const url = h('input', { type: 'url', value: conn.url, placeholder: 'https://abcdefgh.supabase.co', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false' });
   const key = h('input', { type: 'password', value: conn.key, placeholder: 'Public key (anon / publishable)', autocomplete: 'off' });
   const token = h('input', { type: 'password', value: conn.token, placeholder: 'The token you put in schema.sql', autocomplete: 'off' });
   const connStatus = h('p', { class: 'hint', role: 'status' });
   const syncBox = h('div', { class: 'sync-box' });
-
   const values = () => ({ url: url.value, key: key.value, token: token.value });
 
   // Pasted secrets are dots, so mistakes are invisible. Let the user reveal them and see their lengths.
   const lenHint = h('p', { class: 'hint' });
-  const updLen = () => { lenHint.textContent = `Key: ${key.value.trim().length} characters \u00b7 Token: ${token.value.trim().length} characters`; };
+  const updLen = () => { lenHint.textContent = `Key: ${key.value.trim().length} characters · Token: ${token.value.trim().length} characters`; };
   key.addEventListener('input', updLen);
   token.addEventListener('input', updLen);
   updLen();
-  const showBox = h('input', { type: 'checkbox', onchange: (e) => { for (const i of [key, token]) i.type = e.target.checked ? 'text' : 'password'; } });
-  const revealRow = h('div', { class: 'reveal' }, h('label', { class: 'check' }, showBox, h('span', {}, 'Show key and token')), lenHint);
+  const showBox = h('input', { type: 'checkbox', class: 'switch', 'aria-label': 'Show key and token', onchange: (e) => { for (const i of [key, token]) i.type = e.target.checked ? 'text' : 'password'; } });
+  const revealRow = h('div', { class: 'reveal' }, h('label', { class: 'switch-row' }, h('span', {}, 'Show key and token'), showBox), lenHint);
 
   async function test() {
     connStatus.className = 'hint';
-    connStatus.textContent = 'Testing\u2026';
+    connStatus.textContent = 'Testing…';
     try {
       const r = await store.testConnection(values());
       const saved = store.getConn();
@@ -72,20 +68,51 @@ export function createSettingsView() {
     toast(v.url.trim() ? 'Connection saved' : 'Back in Demo mode');
   }
 
-  const connCard = h('div', { class: 'card' },
-    h('h2', { class: 'card-title' }, 'Database connection (Supabase)'),
-    h('p', { class: 'muted small' }, 'Stored only on this phone. Leave all three empty to use Demo mode. Never paste the "service_role" or "secret" key here.'),
+  const connBody = h('div', { class: 'conn-body' },
+    h('p', { class: 'hint' }, 'Stored only on this phone. Leave all three empty to use Demo mode. Never paste the "service_role" or "secret" key here.'),
     field('Project URL', url), field('Public key (anon / publishable)', key), field('Token', token), revealRow,
     h('div', { class: 'row-btns' },
       h('button', { class: 'btn', type: 'button', onclick: test }, 'Test connection'),
       h('button', { class: 'btn primary', type: 'button', onclick: saveConnection }, 'Save connection')),
     connStatus, syncBox);
 
+  const connValue = h('span', {});
+  const connChev = h('span', { class: 'chev', 'aria-hidden': 'true' });
+  const connHead = h('button', { class: 'row', type: 'button', 'aria-expanded': 'false', onclick: () => { ui.connOpen = !isOpen(); applyOpen(); } },
+    h('span', { class: 'row-main' }, h('span', { class: 'row-label' }, 'Database'), h('span', { class: 'entry-sub' }, 'Supabase connection and sync')),
+    connValue, connChev);
+  const connGroup = h('div', { class: 'group' }, connHead, connBody);
+
+  function summaryOf(st) {
+    if (st.kind === 'demo') return ['Demo mode', 'status-warn'];
+    if (store.schemaOutdated()) return ['Update needed', 'status-warn'];
+    if (st.kind === 'problem') return ['Problem', 'status-bad'];
+    if (st.kind === 'offline') return ['Offline', 'status-bad'];
+    if (st.kind === 'syncing') return ['Syncing…', 'status-warn'];
+    if (st.kind === 'waiting') return [`${st.pending} waiting`, 'status-warn'];
+    return ['Connected', 'status-ok'];
+  }
+  const isOpen = () => {
+    if (ui.connOpen !== null) return ui.connOpen;
+    const k = store.syncStatus().kind;
+    return k === 'demo' || k === 'problem' || k === 'offline' || store.schemaOutdated();
+  };
+  function applyOpen() {
+    const open = isOpen();
+    connBody.hidden = !open;
+    connHead.setAttribute('aria-expanded', String(open));
+    connChev.className = `chev ${open ? 'up' : 'down'}`;
+  }
+
   function renderSync() {
     const st = store.syncStatus();
+    const [text, cls] = summaryOf(st);
+    connValue.className = `row-value ${cls}`;
+    connValue.textContent = text;
+    applyOpen();
     if (st.kind === 'demo') {
       syncBox.replaceChildren(
-        h('p', { class: 'muted small' }, 'Demo mode: a sample week is shown and nothing you do here is sent anywhere.'),
+        h('p', { class: 'hint' }, 'Demo mode: a sample week is shown and nothing you do here is sent anywhere.'),
         h('button', { class: 'btn small', type: 'button', onclick: () => { store.resetDemo(); toast('Sample data reset'); } }, 'Reset sample data'));
       return;
     }
@@ -94,83 +121,31 @@ export function createSettingsView() {
       h('p', { class: 'small' }, h('strong', {}, st.text), st.pending ? ` · ${st.pending} waiting` : '', last ? ` · last sync ${new Date(last).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''),
       st.error ? h('p', { class: 'warn-text' }, st.error) : null,
       st.error && st.detail ? h('p', { class: 'hint' }, `Details: ${st.detail}`) : null,
-      h('button', { class: 'btn small', type: 'button', onclick: () => store.sync() }, 'Sync now')].filter(Boolean));
+      store.schemaOutdated() ? h('p', { class: 'warn-text' }, 'The database needs a one-time update for favourites: run supabase/schema.sql again in the Supabase SQL Editor (see SETUP.md).') : null,
+      h('button', { class: 'btn small', type: 'button', onclick: () => store.sync() }, 'Sync now'),
+    ].filter(Boolean));
   }
 
-  // ---- targets & kenko -------------------------------------------------------------------------
-  function settingsCard(title, defs, note) {
-    const inputs = {};
-    const grid = h('div', { class: 'grid2' }, defs.map(([k, label]) => { inputs[k] = numInput(''); return field(label, inputs[k]); }));
-    const fill = () => { const s = store.getSettings(); for (const [k] of defs) if (document.activeElement !== inputs[k]) inputs[k].value = s[k]; };
-    const card = h('div', { class: 'card' }, h('h2', { class: 'card-title' }, title), note ? h('p', { class: 'muted small' }, note) : null, grid,
-      h('div', { class: 'row-btns' },
-        h('button', { class: 'btn primary', type: 'button', onclick: () => {
-          const patch = {};
-          for (const [k, label] of defs) {
-            const n = numOrNull(inputs[k].value);
-            if (n === null || n < 0) { toast(`${label} needs a number`, 'bad'); return; }
-            patch[k] = n;
-          }
-          store.saveSettings(patch);
-          toast('Saved');
-        } }, 'Save'),
-        h('button', { class: 'btn', type: 'button', onclick: () => { for (const [k] of defs) inputs[k].value = DEFAULT_SETTINGS[k]; } }, 'Restore defaults')));
-    fill();
-    return { card, fill };
-  }
-  const targets = settingsCard('Targets', TARGETS, 'Calories are "on target" within ± the band of the target. Protein is "hit" at the mark above.');
-  const kenko = settingsCard('Kenko box', KENKO, 'Used by the "Log Kenko meal" button and the word "kenko".');
-
-  // ---- saved items -----------------------------------------------------------------------------
-  const itemsBox = h('div', {});
-  function openItemSheet(item) {
-    openSheet(item ? 'Edit quick item' : 'New quick item', (close) => {
-      const it = item ?? { name: '', kcal: '', protein_g: '', carbs_g: '', fat_g: '', fibre_g: '', default_slot: 'Snack', on_plan: false, aliases: '' };
-      const name = h('input', { type: 'text', value: it.name, autocomplete: 'off' });
-      const n = { kcal: numInput(it.kcal), protein_g: numInput(it.protein_g), carbs_g: numInput(it.carbs_g), fat_g: numInput(it.fat_g), fibre_g: numInput(it.fibre_g) };
-      const slot = slotSelect(it.default_slot || 'Snack');
-      const onPlan = h('input', { type: 'checkbox', checked: it.on_plan });
-      const aliases = h('input', { type: 'text', value: it.aliases, placeholder: 'comma, separated', autocomplete: 'off' });
-      const msg = h('p', { class: 'form-error', hidden: true, role: 'alert' });
-      return h('form', { class: 'form', onsubmit: (ev) => {
-        ev.preventDefault();
-        const next = { name: name.value.trim(), default_slot: slot.value, on_plan: onPlan.checked, aliases: aliases.value.trim(),
-          ...Object.fromEntries(Object.entries(n).map(([k, i]) => [k, numOrNull(i.value)])) };
-        const err = !next.name ? 'Needs a name' : next.kcal === null ? 'Needs kcal' : next.protein_g === null ? 'Needs protein' : '';
-        if (err) { msg.textContent = err; msg.hidden = false; return; }
-        if (item && item.name.toLowerCase() !== next.name.toLowerCase()) store.deleteItem(item.name);
-        store.saveItem(next);
-        close();
-      } },
-      field('Name', name),
-      h('div', { class: 'grid2' }, field('kcal', n.kcal), field('Protein (g)', n.protein_g)),
-      h('div', { class: 'grid3' }, field('Carbs (g)', n.carbs_g), field('Fat (g)', n.fat_g), field('Fibre (g)', n.fibre_g)),
-      field('Default slot', slot),
-      field('Aliases (what you can type instead of the name)', aliases),
-      h('label', { class: 'check' }, onPlan, h('span', {}, 'On plan')),
-      msg,
-      h('div', { class: 'row-btns' }, h('button', { type: 'submit', class: 'btn primary' }, 'Save'), h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel')));
-    });
-  }
-  function renderItems() {
-    const items = store.getItems();
-    itemsBox.replaceChildren(...(items.length ? items.map((it) => {
-      const row = h('div', { class: 'item-row' });
-      const normal = () => row.replaceChildren(
-        h('div', { class: 'item-main' }, h('strong', {}, it.name), h('span', { class: 'muted small num' }, `${fmt(it.kcal, 0)} kcal · ${fmt(it.protein_g)} g P${it.on_plan ? '' : ' · off plan'}`)),
-        h('div', { class: 'row-btns tight' },
-          h('button', { class: 'btn small', type: 'button', onclick: () => openItemSheet(it) }, 'Edit'),
-          h('button', { class: 'btn small danger-outline', type: 'button', onclick: () => row.replaceChildren(
-            h('div', { class: 'item-main' }, `Delete "${it.name}"?`),
-            h('div', { class: 'row-btns tight' },
-              h('button', { class: 'btn small', type: 'button', onclick: normal }, 'Keep'),
-              h('button', { class: 'btn small danger', type: 'button', onclick: () => store.deleteItem(it.name) }, 'Delete'))) }, 'Delete')));
-      normal();
-      return row;
-    }) : [h('p', { class: 'muted small' }, 'No saved items yet.')]));
-  }
-  const itemsCard = h('div', { class: 'card' }, h('h2', { class: 'card-title' }, 'Saved quick items'), itemsBox,
-    h('button', { class: 'btn', type: 'button', onclick: () => openItemSheet(null) }, 'Add item'));
+  // ---- targets -------------------------------------------------------------------------------------
+  const inputs = {};
+  const fillTargets = () => { const s = store.getSettings(); for (const [k] of TARGETS) if (document.activeElement !== inputs[k]) inputs[k].value = s[k]; };
+  const targetsCard = h('div', { class: 'card' },
+    h('h2', { class: 'card-title' }, 'Daily targets'),
+    h('p', { class: 'hint' }, 'Calories are "on target" within ± the band of the target. Protein is "hit" at the mark below.'),
+    h('div', { class: 'grid2' }, TARGETS.map(([k, label]) => { inputs[k] = numInput(''); return field(label, inputs[k]); })),
+    h('div', { class: 'row-btns' },
+      h('button', { class: 'btn primary', type: 'button', onclick: () => {
+        const patch = {};
+        for (const [k, label] of TARGETS) {
+          const n = numOrNull(inputs[k].value);
+          if (n === null || n < 0) { toast(`${label} needs a number`, 'bad'); return; }
+          patch[k] = n;
+        }
+        store.saveSettings(patch);
+        toast('Saved');
+      } }, 'Save'),
+      h('button', { class: 'btn', type: 'button', onclick: () => { for (const [k] of TARGETS) inputs[k].value = DEFAULT_SETTINGS[k]; } }, 'Restore defaults')));
+  fillTargets();
 
   // ---- CSV -----------------------------------------------------------------------------------------
   const from = h('input', { type: 'date', value: addDays(todayStr(), -29) });
@@ -187,18 +162,22 @@ export function createSettingsView() {
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
     csvMsg.textContent = `${entries.length} entries${store.isDemo() ? ' (demo data)' : fromSheet ? ' from the database' : ' from this phone’s cache (could not reach the database)'}.`;
   }
-  const csvCard = h('div', { class: 'card' }, h('h2', { class: 'card-title' }, 'Download CSV'),
+  const csvCard = h('div', { class: 'card' },
+    h('h2', { class: 'card-title' }, 'Export'),
+    h('p', { class: 'hint' }, 'A CSV of your log. Worth saving now and then as a backup.'),
     h('div', { class: 'grid2' }, field('From', from), field('To', to)),
     h('button', { class: 'btn', type: 'button', onclick: download }, 'Download CSV'), csvMsg);
 
-  el.append(connCard, targets.card, kenko.card, itemsCard, csvCard);
+  el.append(
+    largeTitle('Settings', 'Targets, database and export'),
+    connGroup, targetsCard, csvCard);
   renderSync();
-  renderItems();
 
   return {
     el,
+    title: 'Settings',
     renderSync,
-    update() { renderSync(); renderItems(); targets.fill(); kenko.fill(); },
+    update() { renderSync(); fillTargets(); },
     onShow() { renderSync(); },
   };
 }

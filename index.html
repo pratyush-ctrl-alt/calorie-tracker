@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Plate Log</title>
   <meta name="description" content="Personal calorie and macro logger.">
-  <meta name="theme-color" content="#f5f4ef" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#121413" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Plate Log">
@@ -17,16 +17,15 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <header class="topbar">
-    <div class="topbar-inner">
-      <div>
-        <div class="app-name">Plate Log</div>
-        <div class="date" id="today-date"></div>
+  <header class="navbar" id="navbar">
+    <div class="navbar-inner">
+      <span class="nav-title" id="nav-title">Today</span>
+      <div class="nav-right">
+        <button id="sync-chip" class="sync-chip" type="button" data-kind="saved" aria-live="polite">Saved</button>
       </div>
-      <button id="sync-chip" class="sync-chip" type="button" data-kind="saved" aria-live="polite">Saved</button>
     </div>
     <div id="demo-banner" class="demo-banner" hidden>
-      <span><strong>Demo mode.</strong> This is a sample week. Nothing is sent to your database.</span>
+      <span><strong>Demo mode.</strong> A sample week. Nothing is sent to your database.</span>
       <button type="button" class="link-btn">Set up</button>
     </div>
   </header>

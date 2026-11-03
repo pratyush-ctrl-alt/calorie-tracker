@@ -1,6 +1,7 @@
 -- =====================================================================================
 -- Plate Log: database setup for Supabase.   Paste this whole file into
--- Supabase -> SQL Editor -> New query, then press Run.   It is safe to run again.
+-- Supabase -> SQL Editor -> New query, then press Run.   It is safe to run again, and it keeps
+-- your data and your token. Run it again whenever the app tells you the database needs an update.
 --
 -- STEP 1 (before running): find the single line ending in  <<< YOUR TOKEN  (about 25 lines
 --         down). On that line only, replace the words between the quote marks with your own
@@ -59,8 +60,10 @@ create table if not exists plate_items (
   fibre_g      numeric,
   default_slot text not null default '',
   on_plan      boolean not null default false,
-  aliases      text not null default ''            -- comma separated
+  aliases      text not null default '',           -- comma separated
+  favorite     boolean not null default false      -- pinned to "Quick add" (at most 5)
 );
+alter table plate_items add column if not exists favorite boolean not null default false;
 
 -- ---------- Settings: targets and Kenko box values (all editable in the app)
 create table if not exists plate_settings (
@@ -202,17 +205,18 @@ create or replace function plate_config(p_token text) returns jsonb
 language plpgsql security definer set search_path = public as $$
 begin
   perform plate_auth(p_token);
-  return jsonb_build_object('ok', true,
+  return jsonb_build_object('ok', true, 'schema', 2,
     'settings', coalesce((select jsonb_object_agg(s.key, s.value) from plate_settings s), '{}'::jsonb),
     'items', coalesce((select jsonb_agg(jsonb_build_object(
                'name', i.name, 'kcal', i.kcal, 'protein_g', i.protein_g, 'carbs_g', i.carbs_g, 'fat_g', i.fat_g,
-               'fibre_g', i.fibre_g, 'default_slot', i.default_slot, 'on_plan', i.on_plan, 'aliases', i.aliases)
+               'fibre_g', i.fibre_g, 'default_slot', i.default_slot, 'on_plan', i.on_plan, 'aliases', i.aliases,
+               'favorite', i.favorite)
              order by i.name) from plate_items i), '[]'::jsonb));
 end $$;
 
 create or replace function plate_save_item(p_token text, p_item jsonb) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare nm text; f text;
+declare nm text; f text; fav boolean;
 begin
   perform plate_auth(p_token);
   if p_item is null or jsonb_typeof(p_item) <> 'object' then raise exception 'The item was missing.'; end if;
@@ -225,15 +229,19 @@ begin
       raise exception 'The item: % must be a number.', f;
     end if;
   end loop;
-  insert into plate_items (name_key, name, kcal, protein_g, carbs_g, fat_g, fibre_g, default_slot, on_plan, aliases)
+  fav := coalesce((p_item->>'favorite')::boolean, false);
+  if fav and (select count(*) from plate_items where favorite and name_key <> lower(nm)) >= 5 then
+    raise exception 'You can pin up to 5 favourites. Unpin one first.';
+  end if;
+  insert into plate_items (name_key, name, kcal, protein_g, carbs_g, fat_g, fibre_g, default_slot, on_plan, aliases, favorite)
   values (lower(nm), nm, (p_item->>'kcal')::numeric, (p_item->>'protein_g')::numeric,
           (p_item->>'carbs_g')::numeric, (p_item->>'fat_g')::numeric, (p_item->>'fibre_g')::numeric,
           case when p_item->>'default_slot' in ('Breakfast','Lunch','Snack','Dinner','Workout') then p_item->>'default_slot' else '' end,
-          coalesce((p_item->>'on_plan')::boolean, false), coalesce(p_item->>'aliases', ''))
+          coalesce((p_item->>'on_plan')::boolean, false), coalesce(p_item->>'aliases', ''), fav)
   on conflict (name_key) do update set
     name = excluded.name, kcal = excluded.kcal, protein_g = excluded.protein_g, carbs_g = excluded.carbs_g,
     fat_g = excluded.fat_g, fibre_g = excluded.fibre_g, default_slot = excluded.default_slot,
-    on_plan = excluded.on_plan, aliases = excluded.aliases;
+    on_plan = excluded.on_plan, aliases = excluded.aliases, favorite = excluded.favorite;
   return jsonb_build_object('ok', true, 'name', nm);
 end $$;
 

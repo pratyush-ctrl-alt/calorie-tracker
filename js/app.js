@@ -1,18 +1,19 @@
-import { h, fmtLong, todayStr } from './util.js';
+import { h, svgEl } from './util.js';
 import * as store from './store.js';
 import { nav } from './components.js';
 import { createTodayView } from './views/today.js';
-import { createAddView } from './views/add.js';
-import { createWeekView } from './views/week.js';
-import { createMonthView } from './views/month.js';
+import { createLogView } from './views/log.js';
+import { createItemsView } from './views/items.js';
+import { createTrendsView } from './views/trends.js';
 import { createSettingsView } from './views/settings.js';
 
+// Tab icons: simple strokes in the style of SF Symbols.
 const TABS = [
-  ['today', 'Today', 'M4 5h16v14H4zM4 10h16M9 5v14'],
-  ['add', 'Add', 'M12 5v14M5 12h14'],
-  ['week', 'Week', 'M5 20V10M12 20V4M19 20v-7'],
-  ['month', 'Month', 'M4 6h16v14H4zM4 10h16M8 3v4M16 3v4'],
-  ['settings', 'Settings', 'M4 7h10M18 7h2M4 17h2M10 17h10M16 4v6M8 14v6'],
+  ['today', 'Today', ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z']],
+  ['log', 'Log', ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M12 8v8', 'M8 12h8']],
+  ['items', 'My Items', ['M9 6h11', 'M9 12h11', 'M9 18h11', 'M4.5 6h.01', 'M4.5 12h.01', 'M4.5 18h.01']],
+  ['trends', 'Trends', ['M5 20V10', 'M12 20V4', 'M19 20v-7']],
+  ['settings', 'Settings', ['M4 7h10', 'M18 7h2', 'M4 17h2', 'M10 17h10', 'M16 4v6', 'M8 14v6']],
 ];
 
 // Load saved connection + cache first: views read the store while they are being built.
@@ -20,45 +21,38 @@ store.init();
 
 const views = {
   today: createTodayView(),
-  add: createAddView(),
-  week: createWeekView(),
-  month: createMonthView(),
+  log: createLogView(),
+  items: createItemsView(),
+  trends: createTrendsView(),
   settings: createSettingsView(),
 };
 
 const main = document.getElementById('main');
-const nav$ = document.getElementById('tabbar');
+const tabbar = document.getElementById('tabbar');
+const navbar = document.getElementById('navbar');
+const navTitle = document.getElementById('nav-title');
 const chip = document.getElementById('sync-chip');
-const dateEl = document.getElementById('today-date');
 const banner = document.getElementById('demo-banner');
 
-let current = 'today';
-
-function icon(d) {
-  const ns = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(ns, 'svg');
-  svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('class', 'tab-icon');
-  svg.setAttribute('aria-hidden', 'true');
-  const p = document.createElementNS(ns, 'path');
-  p.setAttribute('d', d);
-  svg.append(p);
+function icon(paths) {
+  const svg = svgEl('svg', { viewBox: '0 0 24 24', class: 'tab-icon', 'aria-hidden': 'true' });
+  for (const d of paths) svg.append(svgEl('path', { d }));
   return svg;
 }
 
 function go(tab) {
   if (!views[tab]) return;
-  current = tab;
   for (const [id, v] of Object.entries(views)) v.el.hidden = id !== tab;
-  nav$.querySelectorAll('button').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'));
+  tabbar.querySelectorAll('button').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'));
+  navTitle.textContent = views[tab].title ?? '';
   views[tab].onShow?.();
   window.scrollTo(0, 0);
+  navbar.classList.remove('scrolled');
   try { history.replaceState(null, '', `#${tab}`); } catch { /* ignore */ }
 }
 nav.go = go;
 
 function renderChrome() {
-  dateEl.textContent = fmtLong(todayStr());
   const st = store.syncStatus();
   chip.textContent = st.text;
   chip.dataset.kind = st.kind;
@@ -71,12 +65,15 @@ function renderAll() {
 }
 
 // ---- boot --------------------------------------------------------------------------
-TABS.forEach(([id, label, d]) => nav$.append(h('button', { type: 'button', class: 'tab', dataset: { tab: id }, onclick: () => go(id) }, icon(d), h('span', {}, label))));
+TABS.forEach(([id, label, paths]) => tabbar.append(h('button', { type: 'button', class: 'tab', dataset: { tab: id }, onclick: () => go(id) }, icon(paths), h('span', {}, label))));
 Object.values(views).forEach((v) => { v.el.hidden = true; main.append(v.el); });
 
 store.subscribe((kind) => { if (kind === 'sync') { renderChrome(); views.settings.renderSync(); } else renderAll(); });
 chip.addEventListener('click', () => { if (!store.isDemo()) store.sync(); else go('settings'); });
 banner.querySelector('button').addEventListener('click', () => go('settings'));
+
+// The large title collapses into the bar once you scroll, like iOS.
+window.addEventListener('scroll', () => navbar.classList.toggle('scrolled', window.scrollY > 44), { passive: true });
 
 // Retry triggers: open, focus / visible, back online, and a timer while something is waiting.
 const retry = () => { if (!document.hidden) store.sync(); };

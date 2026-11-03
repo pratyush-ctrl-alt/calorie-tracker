@@ -1,36 +1,37 @@
-// Sample week for Demo mode. Generated relative to today; never sent to the Sheet.
+// Sample week for Demo mode. Generated relative to today; never sent to the database.
 
-import { PLAN_MENU } from './plan.js';
-import { buildEntry, planFields, kenkoFields } from './entries.js';
-import { DEFAULT_SETTINGS } from './plan.js';
+import { buildEntry } from './entries.js';
 import { addDays, todayStr } from './util.js';
 
-const plan = (name) => PLAN_MENU.find((p) => p.name === name);
+const item = (name, kcal, protein_g, carbs_g, fat_g, fibre_g, default_slot, on_plan, aliases = '', favorite = false) =>
+  ({ name, kcal, protein_g, carbs_g, fat_g, fibre_g, default_slot, on_plan, aliases, favorite });
 
 export const DEMO_ITEMS = [
-  { name: 'Coffee', kcal: 60, protein_g: 2, carbs_g: 8, fat_g: 2, fibre_g: 0, default_slot: 'Snack', on_plan: false, aliases: 'chai, cappuccino' },
-  { name: 'Pani puri', kcal: 300, protein_g: 6, carbs_g: 45, fat_g: 11, fibre_g: 3, default_slot: 'Snack', on_plan: false, aliases: 'golgappa' },
-  { name: 'Marie biscuits', kcal: 110, protein_g: 2, carbs_g: 18, fat_g: 3, fibre_g: 0.5, default_slot: 'Snack', on_plan: false, aliases: 'biscuits' },
+  item('Kenko meal', 580, 50, 61, 15, 6, 'Dinner', true, 'kenko', true),
+  item('Banana', 105, 1.3, 27, 0.4, 3.1, 'Snack', true, '', true),
+  item('Whey, 1 scoop', 120, 24, 3, 2, 0, 'Snack', true, 'whey', true),
+  item('Coffee', 60, 2, 8, 2, 0, 'Snack', false, 'chai, cappuccino'),
+  item('Pani puri', 300, 6, 45, 11, 3, 'Snack', false, 'golgappa'),
 ];
 
-const P = (name, slot) => ({ ...planFields(plan(name), { slot }) });
-const K = (slot = 'Dinner', note = '') => kenkoFields(DEFAULT_SETTINGS, slot, note);
-const I = (name, slot) => ({
-  ...DEMO_ITEMS.find((i) => i.name === name), slot: slot ?? DEMO_ITEMS.find((i) => i.name === name).default_slot,
-  source: 'saved', group: '',
-});
-const L = (slot, name, kcal, p, c, f, fib) => ({ slot, name, kcal, protein_g: p, carbs_g: c, fat_g: f, fibre_g: fib, source: 'line', on_plan: false, group: '' });
+const m = (slot, name, kcal, protein_g, carbs_g, fat_g, fibre_g, on_plan = true) =>
+  ({ slot, name, kcal, protein_g, carbs_g, fat_g, fibre_g, on_plan, source: 'line', group: '' });
+const K = (slot = 'Dinner') => ({ ...m(slot, 'Kenko meal', 580, 50, 61, 15, 6), source: 'saved' });
+const I = (name, slot) => {
+  const it = DEMO_ITEMS.find((i) => i.name === name);
+  return { ...m(slot ?? it.default_slot, it.name, it.kcal, it.protein_g, it.carbs_g, it.fat_g, it.fibre_g, it.on_plan), source: 'saved' };
+};
 
 // offset 1 = yesterday ... 7 = a week ago. Offset 0 is today, in progress.
 const TEMPLATE = {
-  7: [P('Warm lemon water', 'Breakfast'), P('Idli + sambar + curd'), P('Dal + rice + dry sabzi + curd'), P('Whey, 1 scoop'), K()],
-  6: [P('Protein smoothie'), P('Chana masala + brown rice'), P('Greek yogurt 200g'), K('Dinner', 'pasta with grilled paneer'), P('Whey shake + banana', 'Workout')],
-  5: [P('Oats bowl (oats, curd, chia)'), L('Lunch', 'Office canteen thali', 820, 24, 120, 26, 8), I('Coffee'), I('Pani puri'), K()],
-  4: [P('Methi water', 'Breakfast'), P('Dosa + sambar + Greek yogurt'), P('Moong dal khichdi + curd'), P('Whey, 1 scoop'), K(), P('Banana + 2 dates', 'Workout')],
-  3: [P('High-protein muesli + milk'), P('Veg thali'), P('Kulfi'), P('Greek yogurt 200g', 'Snack'), L('Dinner', 'Vegetable soup + toast', 260, 9, 36, 8, 5)],
-  2: [P('Protein smoothie'), P('Dal + rice + dry sabzi + curd'), I('Marie biscuits'), K('Lunch'), P('Whey, 1 scoop', 'Dinner')],
-  1: [P('Idli + sambar + curd'), P('Tofu + sprouts bowl + roti', 'Lunch'), P('Fruit + peanut butter'), P('High-protein milk + banana', 'Workout'), L('Dinner', 'Paneer bhurji, 2 rotis', 540, 31, 42, 28, 7)],
-  0: [P('Oats bowl (oats, curd, chia)'), I('Coffee', 'Breakfast')],
+  7: [m('Breakfast', 'Idli, sambar, curd', 261, 11, 41, 6, 4), m('Lunch', 'Dal, rice, dry sabzi, curd', 715, 30, 85, 18, 7), I('Whey, 1 scoop'), K()],
+  6: [m('Breakfast', 'Protein smoothie', 244, 26, 27, 5, 4), m('Lunch', 'Chana masala, brown rice', 678, 29, 108, 16, 23), m('Snack', 'Greek yogurt 200g', 146, 20, 8, 4, 0), K(), m('Workout', 'Whey shake and banana', 209, 25, 26, 2, 3)],
+  5: [m('Breakfast', 'Oats bowl', 231, 9, 29, 9, 5), m('Lunch', 'Office canteen thali', 820, 24, 120, 26, 8, false), I('Coffee'), I('Pani puri'), K()],
+  4: [m('Breakfast', 'Dosa, sambar, Greek yogurt', 280, 11, 39, 9, 4), m('Lunch', 'Moong dal khichdi, curd', 682, 30, 109, 14, 16), I('Whey, 1 scoop'), K(), I('Banana', 'Workout')],
+  3: [m('Breakfast', 'High-protein muesli, milk', 255, 15.2, 32, 7.3, 4), m('Lunch', 'Veg thali', 760, 28, 121, 19, 6, false), m('Snack', 'Kulfi', 176, 4, 19, 9, 0, false), I('Whey, 1 scoop'), m('Dinner', 'Vegetable soup, toast', 260, 9, 36, 8, 5)],
+  2: [m('Breakfast', 'Protein smoothie', 244, 26, 27, 5, 4), m('Lunch', 'Dal, rice, dry sabzi, curd', 715, 30, 85, 18, 7), I('Coffee'), K('Lunch'), I('Whey, 1 scoop', 'Dinner')],
+  1: [m('Breakfast', 'Idli, sambar, curd', 261, 11, 41, 6, 4), m('Lunch', 'Tofu and sprouts bowl, roti', 729, 44, 81, 27, 18), m('Snack', 'Fruit and peanut butter', 159, 4, 20, 8, 4), m('Dinner', 'Paneer bhurji, 2 rotis', 540, 31, 42, 28, 7)],
+  0: [m('Breakfast', 'Oats bowl', 231, 9, 29, 9, 5), I('Coffee', 'Breakfast')],
 };
 
 const TIMES = { Breakfast: '08:30', Lunch: '13:15', Snack: '17:00', Dinner: '20:30', Workout: '07:00' };
@@ -42,7 +43,7 @@ export function sampleEntries(now = new Date()) {
   for (const [offset, rows] of Object.entries(TEMPLATE)) {
     const date = addDays(today, -Number(offset));
     for (const f of rows) {
-      const e = buildEntry({ ...f, id: `demo-${++n}`, time: TIMES[f.slot], note: f.note ?? '' }, { date, now });
+      const e = buildEntry({ ...f, id: `demo-${++n}`, time: TIMES[f.slot], note: '' }, { date, now });
       out[e.id] = e;
     }
   }

@@ -198,6 +198,44 @@ test('items: add, update by name (case-insensitive), delete', { skip }, () => {
   assert.equal(call('plate_config', T).items.length, 0);
 });
 
+test('favourites: pin up to 5, the 6th is refused, unpinning frees a slot, schema version is 2', { skip }, () => {
+  const mk = (n, favorite) => ({ name: `Fav ${n}`, kcal: 100, protein_g: 5, default_slot: 'Snack', favorite });
+  assert.equal(call('plate_config', T).schema, 2);
+  for (let i = 1; i <= 5; i++) assert.equal(call('plate_save_item', `${T}, ${lit(mk(i, true))}`).ok, true, `pin ${i}`);
+  const sixth = call('plate_save_item', `${T}, ${lit(mk(6, true))}`);
+  assert.equal(sixth.ok, false);
+  assert.match(sixth.error, /up to 5 favourites/);
+  assert.equal(call('plate_save_item', `${T}, ${lit(mk(6, false))}`).ok, true, 'an unpinned 6th item is fine');
+  assert.equal(call('plate_save_item', `${T}, ${lit(mk(1, true))}`).ok, true, 're-saving an already pinned item is fine');
+  assert.equal(call('plate_save_item', `${T}, ${lit(mk(1, false))}`).ok, true);
+  assert.equal(call('plate_save_item', `${T}, ${lit(mk(6, true))}`).ok, true, 'a slot was freed');
+  const items = call('plate_config', T).items;
+  assert.equal(items.filter((i) => i.favorite).length, 5);
+  assert.equal(items.find((i) => i.name === 'Fav 1').favorite, false);
+  for (let i = 1; i <= 6; i++) call('plate_delete_item', `${T}, 'Fav ${i}'`);
+  assert.equal(call('plate_config', T).items.length, 0);
+});
+
+test('an item saved without a favorite key (older app version) is simply not pinned', { skip }, () => {
+  assert.equal(call('plate_save_item', `${T}, ${lit({ name: 'Old', kcal: 10, protein_g: 1 })}`).ok, true);
+  assert.equal(call('plate_config', T).items.find((i) => i.name === 'Old').favorite, false);
+  call('plate_delete_item', `${T}, 'Old'`);
+});
+
+test('upgrading a version-1 database keeps its items and adds favourites', { skip }, () => {
+  // simulate a database created before favourites existed
+  assert.ok(psql(`alter table plate_items drop column favorite;`).ok);
+  assert.ok(psql(`insert into plate_items (name_key, name, kcal, protein_g) values ('banana', 'Banana', 105, 1);`).ok);
+  const schema = readFileSync(new URL('../supabase/schema.sql', import.meta.url), 'utf8'); // placeholder token must not replace the real one
+  const upgraded = psql(schema);
+  assert.ok(upgraded.ok, upgraded.err);
+  const item = call('plate_config', T).items.find((i) => i.name === 'Banana');
+  assert.ok(item, 'existing item survived');
+  assert.equal(item.favorite, false);
+  assert.equal(call('plate_ping', T).ok, true, 'token survived');
+  call('plate_delete_item', `${T}, 'Banana'`);
+});
+
 test('settings: save known keys, reject unknown or non-numeric', { skip }, () => {
   assert.equal(call('plate_save_settings', `${T}, ${lit({ calorie_target: 1900 })}`).ok, true);
   assert.equal(call('plate_config', T).settings.calorie_target, 1900);

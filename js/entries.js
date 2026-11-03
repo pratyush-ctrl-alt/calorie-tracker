@@ -87,10 +87,6 @@ export function kenkoFields(settings, slot = 'Dinner', note = '') {
   };
 }
 
-export function planFields(p, { slot, qty = 1 } = {}) {
-  return { ...scaleFood(p, qty), slot: slot ?? p.default_slot, source: 'plan', on_plan: true, group: p.group };
-}
-
 export function itemFields(item, { slot, qty = 1 } = {}) {
   return {
     ...scaleFood(item, qty),
@@ -116,6 +112,6 @@ export function normalizeItem(r) {
     kcal: numOrNull(r.kcal), protein_g: numOrNull(r.protein_g), carbs_g: numOrNull(r.carbs_g),
     fat_g: numOrNull(r.fat_g), fibre_g: numOrNull(r.fibre_g),
     default_slot: SLOTS.includes(r.default_slot) ? r.default_slot : '',
-    on_plan: truthy(r.on_plan), aliases: String(r.aliases ?? ''),
+    on_plan: truthy(r.on_plan), aliases: String(r.aliases ?? ''), favorite: truthy(r.favorite),
   };
 }

@@ -38,19 +38,19 @@ export function createMonthView() {
     const body = sums.map(({ w, sum }) => h('tr', {},
       h('th', { scope: 'row' }, w.length === 1 ? fmtDayMonth(w[0]) : `${parseYmd(w[0]).getDate()}–${fmtDayMonth(w.at(-1))}`),
       sum.dayCount === 0
-        ? h('td', { colspan: 8, class: 'muted' }, 'not finished yet')
+        ? h('td', { colspan: 7, class: 'muted' }, 'not finished yet')
         : [cell(`${sum.daysLogged}/${sum.dayCount}`), cell(sum.kcalOk), cell(sum.proteinOk), cell(sum.fatOver),
-          cell(sum.offPlanDays), cell(sum.treats), cell(sum.avgKcal === null ? null : fmt(sum.avgKcal, 0)), cell(sum.avgProtein === null ? null : fmt(sum.avgProtein))]));
+          cell(sum.offPlanDays), cell(sum.avgKcal === null ? null : fmt(sum.avgKcal, 0)), cell(sum.avgProtein === null ? null : fmt(sum.avgProtein))]));
     const total = h('tr', { class: 'total' }, h('th', { scope: 'row' }, 'Total'),
       cell(`${totalSum.daysLogged}/${totalSum.dayCount}`), cell(totalSum.kcalOk), cell(totalSum.proteinOk), cell(totalSum.fatOver),
-      cell(totalSum.offPlanDays), cell(totalSum.treats),
+      cell(totalSum.offPlanDays),
       cell(totalSum.avgKcal === null ? null : fmt(totalSum.avgKcal, 0)), cell(totalSum.avgProtein === null ? null : fmt(totalSum.avgProtein)));
 
     const table = h('div', { class: 'card' },
       h('h2', { class: 'card-title' }, 'Week by week'),
       h('p', { class: 'muted small' }, 'Weeks run Monday to Sunday. Counts and averages use logged days only; today is not counted until it is over.'),
       h('div', { class: 'scroll' }, h('table', { class: 'tbl month' },
-        h('thead', {}, h('tr', {}, ['Week', 'Days logged', 'Calories on target', 'Protein hit', 'Fat over', 'Off-plan days', 'Treats', 'Avg kcal', 'Avg protein'].map((t) => h('th', { scope: 'col' }, t)))),
+        h('thead', {}, h('tr', {}, ['Week', 'Days logged', 'Calories on target', 'Protein hit', 'Fat over', 'Off-plan days', 'Avg kcal', 'Avg protein'].map((t) => h('th', { scope: 'col' }, t)))),
         h('tbody', {}, body, total))));
 
     const off = entries.filter((e) => !e.on_plan);

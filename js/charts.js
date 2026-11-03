@@ -8,7 +8,7 @@ import { svgEl, fmt, dayName, parseYmd } from './util.js';
  * line: number    target line (optional)
  * isGood(value) -> bool  decides the bar colour
  */
-export function barChart({ days, band, line, lineLabel, unit, isGood, label }) {
+export function barChart({ days, band, line, lineLabel, unit, isGood, label, kind = 'kcal' }) {
   const W = 340, H = 168, L = 34, R = 8, T = 14, B = 30;
   const vals = days.map((d) => d.value ?? 0);
   const top = Math.max(...vals, band?.hi ?? 0, line ?? 0, 1) * 1.12;
@@ -36,7 +36,7 @@ export function barChart({ days, band, line, lineLabel, unit, isGood, label }) {
       const good = isGood?.(d.value);
       svg.append(svgEl('rect', {
         x: cx - bw / 2, y: y(d.value), width: bw, height: Math.max(1, y(0) - y(d.value)), rx: 3,
-        class: good ? 'c-bar good' : 'c-bar',
+        class: good ? `c-bar good ${kind}` : 'c-bar',
       }, svgEl('title', {}, `${d.date}: ${fmt(d.value, 0)} ${unit}`)));
       svg.append(svgEl('text', { x: cx, y: y(d.value) - 4, class: 'c-val', 'text-anchor': 'middle' }, fmt(d.value, 0)));
     }
