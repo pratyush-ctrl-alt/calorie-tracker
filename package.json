@@ -1,0 +1,11 @@
+{
+  "name": "plate-log",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Personal calorie and macro logger. Static site, no dependencies.",
+  "scripts": {
+    "test": "node --test",
+    "icons": "node tools/make-icons.mjs"
+  }
+}

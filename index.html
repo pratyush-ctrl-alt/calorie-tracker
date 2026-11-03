@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Plate Log</title>
+  <meta name="description" content="Personal calorie and macro logger.">
+  <meta name="theme-color" content="#f5f4ef" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121413" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Plate Log">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div>
+        <div class="app-name">Plate Log</div>
+        <div class="date" id="today-date"></div>
+      </div>
+      <button id="sync-chip" class="sync-chip" type="button" data-kind="saved" aria-live="polite">Saved</button>
+    </div>
+    <div id="demo-banner" class="demo-banner" hidden>
+      <span><strong>Demo mode.</strong> This is a sample week. Nothing is sent to your Sheet.</span>
+      <button type="button" class="link-btn">Set up</button>
+    </div>
+  </header>
+
+  <main id="main" class="main"></main>
+
+  <nav id="tabbar" class="tabbar" aria-label="Main"></nav>
+
+  <noscript><p style="padding:16px">Plate Log needs JavaScript.</p></noscript>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
