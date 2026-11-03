@@ -1,0 +1,21 @@
+name: Tests
+
+# Runs the automated tests on every push to main and on pull requests.
+# (Hosting is done by Netlify, which deploys on its own when main changes.)
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test

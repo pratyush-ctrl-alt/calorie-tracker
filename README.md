@@ -2,18 +2,18 @@
 
 A small personal calorie and macro logger for one person, used on a phone.
 
-Most meals arrive as a single line of text that another AI (Gemini, ChatGPT or Claude) writes after you send it a food photo. You paste that line into Plate Log. The app parses it with plain code, stores it in your own Google Sheet, and shows today's numbers, the last 7 days and the month against your targets. It is tuned to a nutritionist's plan: a pre-made "Kenko" dinner box most days, plus fixed plan options for the other meals.
+Most meals arrive as a single line of text that another AI (Gemini, ChatGPT or Claude) writes after you send it a food photo. You paste that line into Plate Log. The app parses it with plain code, stores it in your own Supabase database, and shows today's numbers, the last 7 days and the month against your targets. It is tuned to a nutritionist's plan: a pre-made "Kenko" dinner box most days, plus fixed plan options for the other meals.
 
-**There is no AI or LLM in the app and no API key anywhere.** Parsing is a pure function in `js/parser.js`.
+**There is no AI or LLM in the app and no AI API key anywhere.** Parsing is a pure function in `js/parser.js`.
 
 ## How it works
 
 - **Frontend:** a static site in plain HTML, CSS and JavaScript (ES modules). No framework, no build step, no runtime dependencies.
-- **Hosting:** GitHub Pages, deployed by `.github/workflows/pages.yml` on every push to `main` (the workflow runs `node --test` first).
-- **Database:** your Google Sheet, reached through a Google Apps Script web app (`apps-script/Code.gs`) that you paste in and deploy yourself.
-- **Auth:** a shared secret token. The Apps Script checks it on every request. The Apps Script URL and the token are typed into the app's Settings screen and live only in the phone's localStorage. They are never committed.
-- **Never lose an entry:** every write goes to a local pending queue first, then to the Sheet. The screens render instantly from a local cache of the last 120 days and refresh from the Sheet. The chip in the header shows "Saved", "2 waiting to sync" or "Can't reach Sheet, will retry". Writes are upserts by a client-generated id, so a retried request never makes a duplicate row.
-- **Demo mode:** with no Apps Script URL set, the app shows a labelled sample week and keeps anything you add on the phone only. Nothing in Demo mode is ever sent to the Sheet.
+- **Hosting:** Netlify, which redeploys automatically whenever `main` changes (`netlify.toml`).
+- **Database:** Supabase (Postgres). `supabase/schema.sql` creates everything; you paste it into Supabase once.
+- **Auth:** a shared secret token. The tables are completely locked; the only way in is a handful of `plate_*` database functions, and each one checks your token first. So the public Supabase key on its own can read and write nothing. The project URL, public key and token are typed into the app's Settings screen and live only in the phone's localStorage. They are never committed.
+- **Never lose an entry:** every write goes to a local pending queue first, then to the database. The screens render instantly from a local cache of the last 120 days and refresh from the database. The chip in the header shows "Saved", "2 waiting to sync" or "Can't reach database, will retry". Writes are upserts by a client-generated id, so a retried request never makes a duplicate row.
+- **Demo mode:** with no project URL set, the app shows a labelled sample week and keeps anything you add on the phone only. Nothing in Demo mode is ever sent to the database.
 
 Setup steps are in [SETUP.md](SETUP.md).
 
@@ -54,45 +54,43 @@ Example: Lunch | Dal, rice, bhindi, curd | 720 kcal | 28g P | 95g C | 22g F | 9g
 ## Development
 
 ```bash
-node --test            # parser, day logic and Apps Script tests, no dependencies
-python3 -m http.server # then open http://localhost:8000
+node --test                 # parser, day logic and database tests, no dependencies
+python3 -m http.server      # then open http://localhost:8000
 node tools/make-icons.mjs   # regenerate the PNG icons
 ```
+
+`tests/supabase.test.mjs` starts a throwaway local PostgreSQL, loads `supabase/schema.sql` into it and calls the functions as the public `anon` role. It skips itself if PostgreSQL is not installed.
 
 ## Decisions
 
 Where the brief was ambiguous I picked the simplest option. Say if you want any of these changed.
 
-- **Where "deploy on push to main" meets this branch.** The workflow triggers on pushes to `main`, and this work was committed to the branch `claude/kind-euler-f0d442`. Nothing deploys until it is merged to `main` (or the workflow is run by hand via `workflow_dispatch`). I did not open a pull request or touch `main`.
-- **Live URL.** `https://pratyush-ctrl-alt.github.io/calorie-tracker/`, derived from the repo name. All asset paths are relative, so it works under that sub-path.
-- **Tests run before deploy.** The Pages workflow runs `node --test` and only deploys if it passes. A root `package.json` (no dependencies, `"type": "module"`) exists only so Node treats `js/*.js` as ES modules.
+### Backend and hosting (changed from the first version)
+
+- **Supabase instead of Google Sheets / Apps Script.** `supabase/schema.sql` replaces `apps-script/Code.gs`. The tables are `plate_log`, `plate_items`, `plate_settings` (and `plate_secret` for the token).
+- **Token gate through database functions, not logins.** No sign-in screen and no command-line deployment: you paste one SQL file. The trade-off is that the token is one shared password; it is a long random string only you know, kept on your phone. The public key alone cannot read or write anything (this is tested).
+- **No supabase-js library.** The app calls the database with plain `fetch`, so there are still no runtime dependencies.
+- **The public key is in Settings, not in the repo.** It is designed to be public, but it stays out of the code anyway. Never paste the `service_role` / secret key anywhere in the app.
+- **Netlify instead of GitHub Pages.** `netlify.toml` tells Netlify what to publish. The old GitHub Pages workflow is gone; `.github/workflows/test.yml` only runs the tests.
+- **Work goes straight to `main`** (at your request). A pull request is optional for a one-person project.
+- **Wording:** the sync chip now says "Can't reach database, will retry" and "Database problem, see Settings" (it said "Sheet" before).
+- **Free plan pause rule.** Supabase pauses free projects after about a week with no activity. Entries wait safely on the phone while paused (they sync after you restore the project). Opening the app at least weekly avoids the pause.
+- **Backups.** Use Settings, Download CSV now and then; do not rely on the free plan for backups.
+- **Old setup dropped.** If a phone still holds an old Apps Script URL, the app ignores it and starts in Demo mode.
+
+### Behaviour
+
 - **Today's remaining numbers.** Calories follow the spec ("Left today: X kcal" / "Over by X kcal"). For protein, once the target is passed I show "protein target met" rather than "Over by X g", since exceeding protein is not a problem. When calories are over but protein is not yet reached it reads "Over by 120 kcal · 52 g protein left".
 - **Carbs on Today** is a grams-only row with no bar, since there is no carbs target.
 - **Week and Month use complete days only.** Today is shown separately as "in progress" on Week. For Month I applied the same rule (my choice; the brief only states it for Week): today is not counted in the week-by-week table or averages, but today's off-plan entries do appear in the Off-plan list. "Days logged" is shown as X/Y where Y is the number of finished days in that period.
-- **Month weeks** run Monday to Sunday, clipped to the month, and are labelled by date range (the 1st may be a short week). The Total row's averages are over all logged days, not an average of the weekly averages.
-- **Calorie band edges.** "Within ±10%" is inclusive on exact arithmetic: 1,833.3 to 2,240.7 kcal, so a day of 1,833 kcal is just outside and 2,240 is just inside. The brief rounds this to 1,833 to 2,241.
+- **Month weeks** run Monday to Sunday, clipped to the month, and are labelled by date range. The Total row's averages are over all logged days, not an average of the weekly averages.
+- **Calorie band edges.** "Within ±10%" is exact: 1,833.3 to 2,240.7 kcal, so a day of 1,833 kcal is just outside and 2,240 is just inside. The brief rounds this to 1,833 to 2,241.
 - **Treats** counts entries whose group is Treat or Ice cream, one per entry regardless of quantity. Entries logged by typing a plan option's name or from the Plan menu carry the group; hand-typed lines do not.
 - **Quantity chips** scale all values (unknown stays unknown) and add a suffix such as "×1.5" to the name.
-- **Parser details.**
-  - A line with no `|` that matches nothing gets the error "needs kcal and protein".
-  - A line with nutrients but no dish name gets "needs a dish name".
-  - If a nutrient appears twice the first one wins and a note is shown.
-  - Shortcuts also work with an explicit slot (`Snack | coffee`). Saved items take priority over plan-menu names, and the word `kenko` always means the Kenko meal.
-  - Values are rounded to 1 decimal place.
-- **Kenko.** Logged as the name "Kenko meal" with source `kenko`, on_plan TRUE; the optional note goes into the `note` column. On Sundays the card starts collapsed. If one is already logged today the card shows "logged" with Undo (a soft delete).
-- **Time column.** New entries get the phone's current time even when backfilling an earlier date.
-- **Dates.** No future dates: the date pickers stop at today, and the 120-day cache fetches up to today.
-- **Sync rules.**
-  - Queued writes are merged per entry id before sending (latest edit wins). If a batch is rejected, entries are retried one by one so a single bad entry cannot block the rest.
-  - The Sheet ignores an incoming update that is older than what it already holds.
-  - Retries run on app open, focus, coming back online, after each entry, and every 30 s while something is waiting. Tapping the chip syncs now.
-  - A bad token or a Sheet-side error keeps the queue and shows "Sheet problem, see Settings" with the reason there. This is a fourth chip state beyond the three you listed.
-  - Refresh never overwrites an entry that still has unsynced local edits.
-- **Demo mode** keeps its own storage (`plate.demo`), separate from live data and the queue, with a "Reset sample data" button. Switching to live later does not move or send any demo entries.
-- **Sheet formats.** `Log` columns for date, time, text and timestamps are set to plain text so Google Sheets does not turn them into Date values. Blank macro cells mean unknown.
-- **Settings not in the brief.** "Restore defaults" buttons on the Targets and Kenko cards, an "Add item" button in Manage saved items (the brief only lists edit/delete), and a "Sync now" button with last-sync time.
-- **CSV export** asks the Sheet for the chosen range when online, and falls back to the 120-day phone cache (it says which). Deleted entries are left out. In Demo mode it exports the demo data.
-- **Apps Script** has an extra `setup()` function you can Run once to authorise and create the tabs, and caps one upsert request at 200 entries.
-- **Icons** are generated by `tools/make-icons.mjs` (a white plate on the app green); replace them freely.
-- **Tests beyond the ten parser cases you listed:** day logic, README prompt matches the in-app prompt, and `Code.gs` run against a fake Sheets API (token check, idempotent upsert, list, items, settings).
-- **Not covered:** I could not run `Code.gs` on real Google Apps Script or test on a real iPhone from this environment. The browser checks used Chromium at 390 px with a mocked Apps Script.
+- **Parser details.** A line with no `|` that matches nothing gets "needs kcal and protein"; nutrients but no dish name gets "needs a dish name"; a nutrient given twice keeps the first with a note; shortcuts also work with an explicit slot (`Snack | coffee`); saved items beat plan-menu names and `kenko` always means the Kenko meal; values round to 1 decimal place.
+- **Kenko.** Logged as "Kenko meal" with source `kenko`, on_plan TRUE; the optional note goes into the `note` column. On Sundays the card starts collapsed. If one is already logged today the card shows "logged" with Undo (a soft delete).
+- **Time and dates.** New entries get the phone's current time even when backfilling. No future dates: the pickers stop at today.
+- **Sync rules.** Queued writes are merged per entry id before sending (latest edit wins); if a batch is rejected, entries are retried one by one so a single bad entry cannot block the rest; the database ignores an incoming update that is older than what it holds. Retries run on app open, focus, coming back online, after each entry, and every 30 s while something is waiting. A wrong token, key or URL keeps the queue and shows "Database problem, see Settings" with the reason there.
+- **Demo mode** keeps its own storage, separate from live data and the queue, with a "Reset sample data" button.
+- **CSV export** asks the database for the chosen range when online, and falls back to the 120-day phone cache (it says which). Deleted entries are left out.
+- **Not covered by my tests:** the real Supabase service and a real iPhone. The database logic is tested on real PostgreSQL, and the app is tested in a phone-sized Chromium against that database through a stand-in for Supabase's web interface.

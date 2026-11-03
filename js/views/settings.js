@@ -28,34 +28,46 @@ export function createSettingsView() {
   const conn = store.getConn();
 
   // ---- connection ----------------------------------------------------------------------
-  const url = h('input', { type: 'url', value: conn.url, placeholder: 'https://script.google.com/macros/s/…/exec', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false' });
-  const token = h('input', { type: 'password', value: conn.token, placeholder: 'The TOKEN you set in Apps Script', autocomplete: 'off' });
+  const url = h('input', { type: 'url', value: conn.url, placeholder: 'https://abcdefgh.supabase.co', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false' });
+  const key = h('input', { type: 'password', value: conn.key, placeholder: 'Public key (anon / publishable)', autocomplete: 'off' });
+  const token = h('input', { type: 'password', value: conn.token, placeholder: 'The token you put in schema.sql', autocomplete: 'off' });
   const connStatus = h('p', { class: 'hint', role: 'status' });
   const syncBox = h('div', { class: 'sync-box' });
 
+  const values = () => ({ url: url.value, key: key.value, token: token.value });
+
   async function test() {
     connStatus.className = 'hint';
-    connStatus.textContent = 'Testing…';
+    connStatus.textContent = 'Testing\u2026';
     try {
-      const r = await store.testConnection({ url: url.value, token: token.value });
+      const r = await store.testConnection(values());
       connStatus.className = 'ok-text';
-      connStatus.textContent = `Connected. Sheet: ${r.sheetName}`;
+      connStatus.textContent = `Connected. ${r.name ?? 'Database'} is ready.`;
     } catch (e) {
       connStatus.className = 'warn-text';
       connStatus.textContent = e.message;
     }
   }
 
+  function saveConnection() {
+    const v = values();
+    const filled = [v.url, v.key, v.token].filter((x) => x.trim()).length;
+    if (filled > 0 && filled < 3) {
+      connStatus.className = 'warn-text';
+      connStatus.textContent = 'Fill in all three (URL, public key and token), or clear all three to use Demo mode.';
+      return;
+    }
+    store.setConn(v);
+    toast(v.url.trim() ? 'Connection saved' : 'Back in Demo mode');
+  }
+
   const connCard = h('div', { class: 'card' },
-    h('h2', { class: 'card-title' }, 'Google Sheet connection'),
-    h('p', { class: 'muted small' }, 'Stored only on this phone. Leave the URL empty to use Demo mode.'),
-    field('Apps Script URL', url), field('Token', token),
+    h('h2', { class: 'card-title' }, 'Database connection (Supabase)'),
+    h('p', { class: 'muted small' }, 'Stored only on this phone. Leave all three empty to use Demo mode. Never paste the "service_role" or "secret" key here.'),
+    field('Project URL', url), field('Public key (anon / publishable)', key), field('Token', token),
     h('div', { class: 'row-btns' },
       h('button', { class: 'btn', type: 'button', onclick: test }, 'Test connection'),
-      h('button', { class: 'btn primary', type: 'button', onclick: () => {
-        store.setConn({ url: url.value, token: token.value });
-        toast(url.value.trim() ? 'Connection saved' : 'Back in Demo mode');
-      } }, 'Save connection')),
+      h('button', { class: 'btn primary', type: 'button', onclick: saveConnection }, 'Save connection')),
     connStatus, syncBox);
 
   function renderSync() {
@@ -161,7 +173,7 @@ export function createSettingsView() {
     document.body.append(a);
     a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-    csvMsg.textContent = `${entries.length} entries${store.isDemo() ? ' (demo data)' : fromSheet ? ' from the Sheet' : ' from this phone’s cache (could not reach the Sheet)'}.`;
+    csvMsg.textContent = `${entries.length} entries${store.isDemo() ? ' (demo data)' : fromSheet ? ' from the database' : ' from this phone’s cache (could not reach the database)'}.`;
   }
   const csvCard = h('div', { class: 'card' }, h('h2', { class: 'card-title' }, 'Download CSV'),
     h('div', { class: 'grid2' }, field('From', from), field('To', to)),

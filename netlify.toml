@@ -1,0 +1,13 @@
+# Netlify settings for Plate Log. Netlify reads this file automatically.
+# No framework and no build step: the "build" just gathers the site files into one folder.
+
+[build]
+  command = "mkdir -p dist && cp -r index.html manifest.json css js icons dist/"
+  publish = "dist"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"
+    X-Frame-Options = "DENY"

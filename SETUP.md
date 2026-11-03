@@ -1,46 +1,90 @@
 # Setup (your manual steps)
 
-The app's live address will be **https://pratyush-ctrl-alt.github.io/calorie-tracker/** once the workflow has run on `main`.
-Until you do steps 1 to 4 and 6, the app runs in Demo mode with a sample week.
+You need three free accounts' worth of clicking, about 30 minutes in total: **Supabase** (the database), **Netlify** (the website) and your phone. You already have GitHub.
+Nothing here needs a command line. The app already works in Demo mode with a sample week, so you can look at it first.
 
-## 1. Create a Google Sheet
-Go to <https://sheets.new> and name it anything (for example "Plate Log data"). Leave it empty: the script creates the `Log`, `Items` and `Settings` tabs and the headers itself.
+**Golden rule for secrets:** you will have a *project URL*, a *public key* and a *token*. They go into the app's Settings screen on your phone, and nowhere else. Don't paste them into GitHub, into the code, or into a chat. You never need to give any of them to anyone for deployment. The one key you must **never** copy anywhere is Supabase's **service_role / secret** key.
 
-## 2. Paste the script
-In the Sheet: **Extensions → Apps Script**. Delete the default `myFunction` code, paste the whole of [`apps-script/Code.gs`](apps-script/Code.gs), and save.
-Optional but recommended: choose the function `setup` in the toolbar and press **Run** once. Google asks you to authorise the script (Review permissions → your account → Advanced → Go to project → Allow). This also creates the tabs.
+---
 
-## 3. Add the token
-In Apps Script: **Project Settings** (gear icon) → **Script Properties** → **Add script property**.
-- Property: `TOKEN`
-- Value: a long random string (at least 32 characters, for example from a password manager).
+## Part A. Supabase (the database)
 
-Keep a copy: you type the same value into the app in step 6. The script refuses every request while `TOKEN` is missing.
+### A1. Make an account and a project
+1. Go to <https://supabase.com> and sign up (easiest: "Continue with GitHub").
+2. Click **New project**. Give it any name (for example `plate-log`).
+3. **Database password:** click the generate button and save the password in a password manager. The app never uses it, but you'd need it if you ever connect other tools.
+4. **Region:** choose the closest one, **South Asia (Mumbai)**.
+5. Plan: **Free**. Click **Create new project** and wait a minute or two.
 
-## 4. Deploy as a web app
-**Deploy → New deployment** → gear icon → **Web app**.
-- Execute as: **Me**
-- Who has access: **Anyone**
+### A2. Pick your token
+Make up a long random token of 30 or more letters and digits (a password manager's generator is perfect, with symbols turned off). Save it in your password manager. You will use it twice: in the SQL below, and in the app.
 
-Press **Deploy** and copy the **Web app URL** (it ends in `/exec`). "Anyone" is needed so the phone can reach it without a Google login; the token is what protects it.
+### A3. Create the tables
+1. In Supabase's left menu open **SQL Editor** → **New query**.
+2. Open [`supabase/schema.sql`](supabase/schema.sql) in this repo, press the **Raw** or copy button, and paste the **whole file** into the editor.
+3. About 25 lines down, find the line that ends with `-- <<< YOUR TOKEN`. On that line only, replace the words between the quote marks (`CHANGE-ME-TO-A-LONG-RANDOM-VALUE`) with your token. **Don't use "replace all"**, and keep the quote marks.
+4. Click **Run**. You should see "Success. No rows returned".
+   - If Supabase warns about "RLS" or asks to confirm a query that changes things, that's expected: this file turns the safety lock **on**. Confirm it.
 
-## 5. Turn on GitHub Pages
-In the GitHub repo: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-Then merge your work into `main` (or run the "Deploy to GitHub Pages" workflow from the Actions tab). The workflow runs the tests and publishes the site. The first run can only succeed after this step.
+To change the token later, run this in the SQL Editor: `update plate_secret set token = 'your new token';`
 
-## 6. Connect the app
-Open the live URL on your phone, go to **Settings**, paste the Apps Script URL and the token, tap **Save connection**, then **Test connection**. You should see "Connected. Sheet: <your sheet name>". The header chip should show "Saved" and the Demo banner disappears. (Demo data stays on the phone and is never sent to the Sheet.)
+### A4. Copy the project URL and public key
+1. Left menu: **Project Settings** (the gear) → **API** (newer screens call this **API Keys**).
+2. Copy the **Project URL** (looks like `https://abcdefghijkl.supabase.co`).
+3. Copy the public key: the **anon** key (a very long text starting `eyJ…`) or the **publishable** key (starts `sb_publishable_…`). Either works.
+4. Do **not** copy the `service_role` or `secret` key.
 
-## 7. Add to the home screen
-- **iPhone (Safari):** Share → **Add to Home Screen**.
-- **Android (Chrome):** ⋮ menu → **Add to Home screen** or **Install app**.
+---
 
-It then opens full-screen. The URL and token are stored only in that browser/app's storage, so enter them again if you add the app from a different browser.
+## Part B. Netlify (the website)
 
-## 8. When `Code.gs` changes later
-Paste the new code into Apps Script, then **Deploy → Manage deployments → ✏️ Edit → Version: New version → Deploy**. Do **not** use "New deployment": that creates a new URL. Editing the existing deployment keeps the URL (and the app's saved setting) the same.
+### Why Netlify
+For a one-person phone app, Netlify and Cloudflare Pages are both free and both redeploy automatically when `main` changes. Netlify's screens are the friendliest for a first-timer and its free plan is far more than this app needs, so that is what this guide uses. Cloudflare Pages is the fallback (see the end). GitHub Pages is not used any more.
 
-## Troubleshooting
-- **"The Apps Script URL did not answer with JSON"**: the deployment is not shared with "Anyone", or the URL is not the `/exec` one.
-- **"Wrong or missing token"**: the token in Settings differs from the `TOKEN` script property.
-- **Chip says "Can't reach Sheet, will retry"**: you are offline or the script is down. Nothing is lost; entries wait in a queue on the phone and are sent automatically. Tap the chip to retry now.
+### B1. Deploy
+1. Go to <https://www.netlify.com> and sign up with **GitHub**.
+2. **Add new project** → **Import an existing project** → **Deploy with GitHub**. Allow Netlify to access your GitHub (you can limit it to just the `calorie-tracker` repository).
+3. Choose the repository **pratyush-ctrl-alt/calorie-tracker**.
+4. Settings: **Branch to deploy: `main`**. Netlify reads the build command and publish folder from `netlify.toml` automatically, so leave those as they are (build command `mkdir -p dist && cp -r index.html manifest.json css js icons dist/`, publish directory `dist`).
+5. Click **Deploy**. After about a minute you get an address like `https://something-random.netlify.app`.
+6. Optional: **Project configuration → Change project name** to something memorable such as `plate-log-pratyush` (the address becomes `https://plate-log-pratyush.netlify.app`).
+
+From now on, every change on `main` is published by Netlify automatically.
+
+---
+
+## Part C. Connect your phone
+
+1. Open your Netlify address on your phone's browser (Safari on iPhone, Chrome on Android).
+2. Tap **Settings** at the bottom. Fill in:
+   - **Project URL**: from A4
+   - **Public key**: from A4
+   - **Token**: from A2
+3. Tap **Test connection**. You should see "Connected. Plate Log database is ready."
+4. Tap **Save connection**. The Demo banner disappears and the chip at the top says "Saved".
+5. **Add to the home screen:**
+   - iPhone (Safari): Share button → **Add to Home Screen**.
+   - Android (Chrome): ⋮ menu → **Add to Home screen** / **Install app**.
+6. Open the app **from the home-screen icon** and check Settings once: the home-screen app keeps its own storage, so if the fields are empty, enter the three values again there.
+
+### If Test connection fails
+| It says | What to do |
+|---|---|
+| "The project URL should look like https://…supabase.co" | Re-copy the Project URL from Supabase. |
+| "Supabase rejected the public key" | Re-copy the anon / publishable key (not the secret one). |
+| "Wrong or missing token" | The token in the app differs from the one in the SQL. Fix the app, or run the `update plate_secret…` line from A3. |
+| "The database tables are not set up yet" | Run `schema.sql` (A3). |
+| "The database did not answer properly" | Your free Supabase project may be paused: open the Supabase dashboard and click **Restore project**. |
+
+---
+
+## Part D. Good to know
+
+- **Free projects pause** after about a week with no use. Nothing is lost: entries you add meanwhile wait on the phone and sync after you restore the project in the dashboard. Opening the app every few days avoids it.
+- **Backups:** don't rely on the free plan for them. Every month or so, use **Settings → Download CSV** and keep the file.
+- **Changing the app later:** I edit `main` on GitHub; Netlify redeploys; reopen the app (pull down to refresh, or close and reopen it) to get the new version.
+- **Changing the database later:** if I change `supabase/schema.sql`, I'll tell you to paste it into the SQL Editor again. It is safe to run repeatedly and keeps your data and token.
+- **Moving to a new web address** (for example renaming the Netlify project) means entering the three Settings values again and re-adding the home-screen icon, because phones store settings per address.
+
+## Cloudflare Pages instead (if you ever prefer it)
+Same idea: **Workers & Pages → Create → Pages → Connect to Git** → pick the repo, branch `main`, **Build command** `mkdir -p dist && cp -r index.html manifest.json css js icons dist/`, **Build output directory** `dist`. Everything else in this guide stays the same.

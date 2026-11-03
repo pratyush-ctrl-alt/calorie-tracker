@@ -1,8 +1,8 @@
 // Local-first store.
 //
 //  * Live mode (an Apps Script URL is set): every write lands in the local cache AND in a pending
-//    queue (localStorage) first; the queue is flushed to the Sheet in the background and is only
-//    emptied for operations the Sheet confirmed. A failed network never loses an entry.
+//    queue (localStorage) first; the queue is flushed to the database in the background and is only
+//    emptied for operations the database confirmed. A failed network never loses an entry.
 //  * Demo mode (no URL): everything stays in a separate local namespace and nothing is ever sent.
 
 import * as api from './api.js';
@@ -31,7 +31,7 @@ const ls = {
 };
 
 // ---- state -------------------------------------------------------------------
-let conn = { url: '', token: '' };
+let conn = { url: '', key: '', token: '' };
 let data = { entries: {}, items: [], settings: {}, fetchedAt: 0 };
 let queue = [];
 let flushing = false;
@@ -66,7 +66,8 @@ function loadNamespace() {
 }
 
 export function init() {
-  conn = { url: '', token: '', ...ls.get(K.conn, {}) };
+  conn = { url: '', key: '', token: '', ...ls.get(K.conn, {}) };
+  if (/script\.google/.test(conn.url)) conn = { url: '', key: '', token: '' }; // old Apps Script setup: start over in Demo mode
   loadNamespace();
   lastFail = false;
   lastError = '';
@@ -76,7 +77,7 @@ export function init() {
 }
 
 export function setConn(next) {
-  conn = { url: String(next.url ?? '').trim(), token: String(next.token ?? '').trim() };
+  conn = { url: String(next.url ?? '').trim(), key: String(next.key ?? '').trim(), token: String(next.token ?? '').trim() };
   ls.set(K.conn, conn);
   loadNamespace();
   lastFail = false;
@@ -116,8 +117,8 @@ export function syncStatus() {
   const pending = queue.length;
   if (isDemo()) return { kind: 'demo', text: 'Demo mode', pending: 0, error: '' };
   if (flushing || refreshing) return { kind: 'syncing', text: pending ? `Syncing ${pending}…` : 'Syncing…', pending, error: lastError };
-  if (lastFail) return { kind: 'offline', text: "Can't reach Sheet, will retry", pending, error: lastError };
-  if (lastError) return { kind: 'problem', text: 'Sheet problem, see Settings', pending, error: lastError };
+  if (lastFail) return { kind: 'offline', text: "Can't reach database, will retry", pending, error: lastError };
+  if (lastError) return { kind: 'problem', text: 'Database problem, see Settings', pending, error: lastError };
   if (pending) return { kind: 'waiting', text: `${pending} waiting to sync`, pending, error: '' };
   return { kind: 'saved', text: 'Saved', pending: 0, error: '' };
 }
@@ -177,7 +178,7 @@ export function saveSettings(partial) {
   committed();
 }
 
-// ---- flush: pending queue -> Sheet --------------------------------------------
+// ---- flush: pending queue -> database --------------------------------------------
 const removeOps = (ids) => { queue = queue.filter((o) => !ids.has(o.qid)); };
 
 async function sendEntries(entries) {
@@ -185,12 +186,12 @@ async function sendEntries(entries) {
     await api.upsert(conn, entries);
     return new Set(entries.map((e) => e.id));
   } catch (err) {
-    if (err.network || err.code === 'bad_token' || err.code === 'no_token_configured' || entries.length === 1) throw err;
+    if (err.network || api.isFatal(err) || entries.length === 1) throw err;
     // One bad entry must not hold the rest hostage: retry them one by one.
     const saved = new Set();
     let firstErr = err;
     for (const e of entries) {
-      try { await api.upsert(conn, [e]); saved.add(e.id); } catch (e2) { if (e2.network) throw e2; firstErr = e2; }
+      try { await api.upsert(conn, [e]); saved.add(e.id); } catch (e2) { if (e2.network || api.isFatal(e2)) throw e2; firstErr = e2; }
     }
     lastError = firstErr.message;
     return saved;
@@ -215,7 +216,7 @@ export async function flush() {
         const latest = new Map(ups.map((o) => [o.entry.id, o.entry]));
         const saved = await sendEntries([...latest.values()]);
         removeOps(new Set(ups.filter((o) => saved.has(o.entry.id)).map((o) => o.qid)));
-        if (saved.size < latest.size) problem = lastError || 'The Sheet rejected an entry';
+        if (saved.size < latest.size) problem = lastError || 'The database rejected an entry';
       }
 
       // Everything else, in order.
@@ -226,7 +227,7 @@ export async function flush() {
           else if (o.op === 'saveSettings') await api.saveSettings(conn, o.settings);
           removeOps(new Set([o.qid]));
         } catch (err) {
-          if (err.network || err.code === 'bad_token' || err.code === 'no_token_configured') throw err;
+          if (err.network || api.isFatal(err)) throw err;
           problem = err.message;
         }
       }
@@ -245,7 +246,7 @@ export async function flush() {
   }
 }
 
-// ---- refresh: Sheet -> local cache ---------------------------------------------
+// ---- refresh: database -> local cache ---------------------------------------------
 export async function refresh() {
   if (isDemo() || refreshing) return;
   refreshing = true;
@@ -282,14 +283,14 @@ export async function refresh() {
   }
 }
 
-/** Run on app open, focus, back-online and a timer: push anything waiting, then pull the Sheet. */
+/** Run on app open, focus, back-online and a timer: push anything waiting, then pull the database. */
 export async function sync() {
   if (isDemo()) return;
   await flush();
   await refresh();
 }
 
-/** Read a date range for CSV export. Live mode asks the Sheet first and falls back to the cache. */
+/** Read a date range for CSV export. Live mode asks the database first and falls back to the cache. */
 export async function entriesForExport(from, to) {
   if (!isDemo()) {
     try {
@@ -304,7 +305,7 @@ export async function entriesForExport(from, to) {
 }
 
 export async function testConnection(c) {
-  return api.ping({ url: String(c.url ?? '').trim(), token: String(c.token ?? '').trim() });
+  return api.ping({ url: String(c.url ?? '').trim(), key: String(c.key ?? '').trim(), token: String(c.token ?? '').trim() });
 }
 
 export { buildEntry };

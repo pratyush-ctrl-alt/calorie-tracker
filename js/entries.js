@@ -99,7 +99,7 @@ export function itemFields(item, { slot, qty = 1 } = {}) {
   };
 }
 
-/** Normalises a row coming from the Sheet (or an old cache) into the entry shape. */
+/** Normalises a row coming from the database (or an old cache) into the entry shape. */
 export function normalizeEntry(r) {
   return {
     id: String(r.id), date: String(r.date), time: String(r.time ?? ''), slot: r.slot, name: String(r.name ?? ''),
