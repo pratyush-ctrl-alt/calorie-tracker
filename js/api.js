@@ -30,8 +30,14 @@ async function rpc(conn, fn, args = {}, timeoutMs = 20000) {
   const c = cleanConn(conn);
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), timeoutMs);
+  let res = null;
+  let body = null;
+  const fail = (E, message, code) => {
+    const e = new E(message, code);
+    e.detail = `${fn}, ${res ? `HTTP ${res.status}` : 'no response'}${body?.code ? `, code ${body.code}` : ''}`;
+    return e;
+  };
   try {
-    let res;
     try {
       res = await fetch(`${c.url}/rest/v1/rpc/${fn}`, {
         method: 'POST',
@@ -40,29 +46,28 @@ async function rpc(conn, fn, args = {}, timeoutMs = 20000) {
         signal: ctl.signal,
       });
     } catch {
-      throw new NetError("Can't reach the database (network error or timeout)");
+      throw fail(NetError, "Can't reach the database (network error or timeout)");
     }
-    let body = null;
     try { body = await res.json(); } catch { /* not JSON */ }
 
     if (res.ok) {
-      if (body === null) throw new NetError('The database answered with something unexpected.');
+      if (body === null) throw fail(NetError, 'The database answered with something unexpected.');
       return body;
     }
     const msg = String(body?.message ?? '');
     if (res.status >= 500) {
-      throw new NetError('The database did not answer properly. If your Supabase project is paused, restore it from the Supabase dashboard.');
+      throw fail(NetError, 'The database did not answer properly. If your Supabase project is paused, restore it from the Supabase dashboard.');
     }
     if (res.status === 401 || res.status === 403) {
       if (/api key|apikey|jwt/i.test(msg) || body?.code === 'PGRST301') {
-        throw new ServerError('Supabase rejected the public key. Copy it again from Project Settings, API.', 'bad_key');
+        throw fail(ServerError, 'Supabase rejected the public key. Copy it again from Project Settings, API.', 'bad_key');
       }
-      throw new ServerError(msg || 'Wrong or missing token.', 'bad_token');
+      throw fail(ServerError, msg || 'Wrong or missing token.', 'bad_token');
     }
     if (res.status === 404 || body?.code === 'PGRST202') {
-      throw new ServerError('The database tables are not set up yet. Run supabase/schema.sql in the Supabase SQL Editor (see SETUP.md).', 'no_schema');
+      throw fail(ServerError, 'The database tables are not set up yet. Run supabase/schema.sql in the Supabase SQL Editor (see SETUP.md).', 'no_schema');
     }
-    throw new ServerError(msg || `The database returned an error (${res.status}).`, body?.code);
+    throw fail(ServerError, msg || `The database returned an error (${res.status}).`, body?.code);
   } finally {
     clearTimeout(timer);
   }

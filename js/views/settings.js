@@ -79,10 +79,11 @@ export function createSettingsView() {
       return;
     }
     const last = store.lastSync();
-    syncBox.replaceChildren(
+    syncBox.replaceChildren(...[
       h('p', { class: 'small' }, h('strong', {}, st.text), st.pending ? ` · ${st.pending} waiting` : '', last ? ` · last sync ${new Date(last).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''),
       st.error ? h('p', { class: 'warn-text' }, st.error) : null,
-      h('button', { class: 'btn small', type: 'button', onclick: () => store.sync() }, 'Sync now'));
+      st.error && st.detail ? h('p', { class: 'hint' }, `Details: ${st.detail}`) : null,
+      h('button', { class: 'btn small', type: 'button', onclick: () => store.sync() }, 'Sync now')].filter(Boolean));
   }
 
   // ---- targets & kenko -------------------------------------------------------------------------
@@ -185,6 +186,7 @@ export function createSettingsView() {
 
   return {
     el,
+    renderSync,
     update() { renderSync(); renderItems(); targets.fill(); kenko.fill(); },
     onShow() { renderSync(); },
   };

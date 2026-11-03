@@ -39,6 +39,7 @@ let flushAgain = false;
 let refreshing = false;
 let lastFail = false;     // last network attempt failed
 let lastError = '';       // plain-English reason for the most recent problem
+let lastDetail = '';      // technical detail for that problem (which call, HTTP status)
 let lastSyncAt = 0;
 const listeners = new Set();
 
@@ -71,6 +72,7 @@ export function init() {
   loadNamespace();
   lastFail = false;
   lastError = '';
+  lastDetail = '';
   emit('data');
   emit('sync');
   if (!isDemo()) { flush().then(refresh); }
@@ -82,6 +84,7 @@ export function setConn(next) {
   loadNamespace();
   lastFail = false;
   lastError = '';
+  lastDetail = '';
   emit('data');
   emit('sync');
   if (!isDemo()) { flush().then(refresh); }
@@ -116,9 +119,9 @@ export const getEntry = (id) => data.entries[id] ?? null;
 export function syncStatus() {
   const pending = queue.length;
   if (isDemo()) return { kind: 'demo', text: 'Demo mode', pending: 0, error: '' };
-  if (flushing || refreshing) return { kind: 'syncing', text: pending ? `Syncing ${pending}…` : 'Syncing…', pending, error: lastError };
-  if (lastFail) return { kind: 'offline', text: "Can't reach database, will retry", pending, error: lastError };
-  if (lastError) return { kind: 'problem', text: 'Database problem, see Settings', pending, error: lastError };
+  if (flushing || refreshing) return { kind: 'syncing', text: pending ? `Syncing ${pending}…` : 'Syncing…', pending, error: lastError, detail: lastDetail };
+  if (lastFail) return { kind: 'offline', text: "Can't reach database, will retry", pending, error: lastError, detail: lastDetail };
+  if (lastError) return { kind: 'problem', text: 'Database problem, see Settings', pending, error: lastError, detail: lastDetail };
   if (pending) return { kind: 'waiting', text: `${pending} waiting to sync`, pending, error: '' };
   return { kind: 'saved', text: 'Saved', pending: 0, error: '' };
 }
@@ -235,8 +238,8 @@ export async function flush() {
       persist();
     } while (flushAgain);
     lastFail = false;
-    lastSyncAt = Date.now();
   } catch (err) {
+    lastDetail = err.detail ?? '';
     if (err.network) { lastFail = true; lastError = err.message; }
     else { lastFail = false; lastError = err.message; }
   } finally {
@@ -271,12 +274,14 @@ export async function refresh() {
     data.fetchedAt = Date.now();
     lastFail = false;
     lastError = '';
+  lastDetail = '';
     lastSyncAt = Date.now();
     persist();
     emit('data');
   } catch (err) {
     lastFail = !!err.network;
     lastError = err.message;
+    lastDetail = err.detail ?? '';
   } finally {
     refreshing = false;
     emit('sync');

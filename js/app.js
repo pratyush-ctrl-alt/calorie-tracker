@@ -74,7 +74,7 @@ function renderAll() {
 TABS.forEach(([id, label, d]) => nav$.append(h('button', { type: 'button', class: 'tab', dataset: { tab: id }, onclick: () => go(id) }, icon(d), h('span', {}, label))));
 Object.values(views).forEach((v) => { v.el.hidden = true; main.append(v.el); });
 
-store.subscribe((kind) => (kind === 'sync' ? renderChrome() : renderAll()));
+store.subscribe((kind) => { if (kind === 'sync') { renderChrome(); views.settings.renderSync(); } else renderAll(); });
 chip.addEventListener('click', () => { if (!store.isDemo()) store.sync(); else go('settings'); });
 banner.querySelector('button').addEventListener('click', () => go('settings'));
 
