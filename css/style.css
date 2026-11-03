@@ -1,5 +1,5 @@
-/* Plate Log: an Apple Health / Fitness inspired design.
-   True black in dark mode, grouped inset lists, translucent bars, large titles, system colours.
+/* Calorie Tracker. Dark-first: true black, grouped rounded lists, translucent bars, large titles.
+   Progress is shown as plain horizontal bars in a calm amber / violet / sand palette.
    Light and dark follow the phone. Numbers use tabular figures. No emoji icons. */
 
 :root {
@@ -23,12 +23,10 @@
   --bar: rgba(249, 249, 249, 0.8);
   --sheet-field: #ffffff;
 
-  /* the metrics: borrowed from Apple's Activity rings */
-  --m-kcal: #fa114f;
-  --m-protein: #30c24f;
-  --m-fibre: #1fb6e8;
-  --m-fat: #f5b800;
-  --m-carb: #a855e8;
+  /* the three headline metrics. Fat and carbs stay neutral on purpose. */
+  --m-kcal: #e8890c;
+  --m-protein: #6c5ce7;
+  --m-fibre: #a58b5c;
 
   --radius: 16px;
   color-scheme: light dark;
@@ -51,11 +49,9 @@
     --yellow: #ffd60a;
     --bar: rgba(22, 22, 24, 0.8);
     --sheet-field: #2c2c2e;
-    --m-kcal: #ff375f;
-    --m-protein: #a4ff2e;
-    --m-fibre: #64d2ff;
-    --m-fat: #ffd60a;
-    --m-carb: #bf5af2;
+    --m-kcal: #ffb020;
+    --m-protein: #9d8cff;
+    --m-fibre: #d8c39a;
   }
 }
 
@@ -162,17 +158,19 @@ button.row:active { background: var(--fill); }
 .left-stat { display: flex; flex-direction: column; gap: 3px; }
 .left-num { font-size: 44px; line-height: 1; font-weight: 700; letter-spacing: -0.02em; }
 .left-unit { font-size: 13px; color: var(--text2); font-weight: 500; }
-.left-stat.over .left-num { color: var(--orange); }
+.left-stat.over .left-num { color: var(--red); }
 .left-stat.met .left-num { color: var(--m-protein); font-size: 34px; padding-top: 6px; }
-.summary { display: flex; align-items: center; gap: 20px; }
-.rings { width: 124px; height: 124px; flex: none; }
-.ring-track { fill: none; stroke-width: 11; opacity: 0.22; }
-.ring-fill { fill: none; stroke-width: 11; stroke-linecap: round; transition: stroke-dashoffset 0.7s cubic-bezier(0.2, 0.7, 0.2, 1); }
-.legend { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
-.legend-item { display: flex; flex-direction: column; gap: 1px; }
-.legend-label { font-size: 13px; font-weight: 600; }
-.legend-value { font-size: 20px; font-weight: 600; line-height: 1.15; }
-.legend-value small { font-size: 13px; font-weight: 500; color: var(--text2); }
+.bars { display: flex; flex-direction: column; gap: 18px; }
+.metric { display: flex; flex-direction: column; gap: 8px; }
+.metric-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.metric-name { font-size: 15px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+.metric-name::before { content: ''; width: 9px; height: 9px; border-radius: 3px; background: var(--c); }
+.metric-val { font-size: 15px; color: var(--text2); white-space: nowrap; }
+.metric-val strong { font-size: 19px; font-weight: 700; color: var(--text); }
+.metric-track { height: 12px; background: var(--fill); border-radius: 6px; overflow: hidden; }
+.metric-fill { height: 100%; border-radius: 6px; background: var(--c); transition: width 0.6s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.metric.over .metric-fill { background: var(--red); }
+.metric.over .metric-name::before { background: var(--red); }
 .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .tile { background: var(--card); border-radius: var(--radius); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
 .tile-label { font-size: 13px; font-weight: 600; }
@@ -329,7 +327,7 @@ input[type='checkbox'].switch:checked::after { transform: translateX(20px); }
 .c-grid { stroke: var(--sep); stroke-width: 0.5; }
 .c-axis { fill: var(--text2); font-size: 10px; }
 .c-val { fill: var(--text); font-size: 10px; font-weight: 600; }
-.c-band { fill: var(--m-kcal); opacity: 0.16; }
+.c-band { fill: var(--m-kcal); opacity: 0.18; }
 .c-target { stroke: var(--text); stroke-width: 1; stroke-dasharray: 4 3; opacity: 0.5; }
 .c-bar { fill: var(--text3); opacity: 0.5; }
 .c-bar.good { opacity: 1; }

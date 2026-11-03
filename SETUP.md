@@ -60,7 +60,7 @@ From now on, every change on `main` is published by Netlify automatically.
    - **Project URL**: from A4
    - **Public key**: from A4
    - **Token**: from A2
-3. Tap **Test connection**. You should see "Connected. Plate Log database is ready."
+3. Tap **Test connection**. You should see "Connected. Your database is ready."
 4. Tap **Save connection**. The Demo banner disappears and the chip at the top says "Saved". The Database section then folds into a single row; tap it any time to open it again.
 5. **Add to the home screen:**
    - iPhone (Safari): Share button → **Add to Home Screen**.

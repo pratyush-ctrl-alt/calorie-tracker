@@ -9,7 +9,7 @@ import { createSettingsView } from './views/settings.js';
 
 // Tab icons: simple strokes in the style of SF Symbols.
 const TABS = [
-  ['today', 'Today', ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z']],
+  ['today', 'Today', ['M4 6.5h16', 'M4 12h11', 'M4 17.5h6.5']],
   ['log', 'Log', ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M12 8v8', 'M8 12h8']],
   ['items', 'My Items', ['M9 6h11', 'M9 12h11', 'M9 18h11', 'M4.5 6h.01', 'M4.5 12h.01', 'M4.5 18h.01']],
   ['trends', 'Trends', ['M5 20V10', 'M12 20V4', 'M19 20v-7']],

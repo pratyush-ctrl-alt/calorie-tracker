@@ -106,26 +106,16 @@ export function starIcon() {
   return svg;
 }
 
-// ---- Activity-style rings ------------------------------------------------------------------
-/** rings: [{value, target, color}] outermost first. Shows a full ring when over target. */
-export function ringsSvg(rings, label) {
-  const size = 124, stroke = 11, gap = 3;
-  const svg = svgEl('svg', { viewBox: `0 0 ${size} ${size}`, class: 'rings', role: 'img', 'aria-label': label });
-  rings.forEach((r, i) => {
-    const radius = size / 2 - stroke / 2 - i * (stroke + gap);
-    const c = 2 * Math.PI * radius;
-    const pct = r.target > 0 ? Math.max(0, Math.min(1, r.value / r.target)) : 0;
-    svg.append(svgEl('circle', { cx: size / 2, cy: size / 2, r: radius, class: 'ring-track', style: `stroke:${r.color}` }));
-    if (pct > 0.002) {
-      const fill = svgEl('circle', {
-        cx: size / 2, cy: size / 2, r: radius, class: 'ring-fill', style: `stroke:${r.color}`,
-        'stroke-dasharray': c, 'stroke-dashoffset': c, transform: `rotate(-90 ${size / 2} ${size / 2})`,
-      });
-      svg.append(fill);
-      requestAnimationFrame(() => requestAnimationFrame(() => fill.setAttribute('stroke-dashoffset', String(c * (1 - pct)))));
-    }
-  });
-  return svg;
+// ---- progress bars ------------------------------------------------------------------
+/** A labelled horizontal bar. `over` turns it red (used for calories above the target). */
+export function metricBar({ label, color, value, target, unit, over = false, dp = 1 }) {
+  const pct = target > 0 ? Math.max(0, Math.min(100, (value / target) * 100)) : 0;
+  return h('div', { class: `metric ${over ? 'over' : ''}`, style: `--c:${color}` },
+    h('div', { class: 'metric-head' },
+      h('span', { class: 'metric-name' }, label),
+      h('span', { class: 'metric-val num' }, h('strong', {}, fmt(value, dp)), ` / ${fmt(target, 0)} ${unit}`)),
+    h('div', { class: 'metric-track', role: 'progressbar', 'aria-label': label, 'aria-valuemin': 0, 'aria-valuemax': target, 'aria-valuenow': value },
+      h('div', { class: 'metric-fill', style: `width:${pct}%` })));
 }
 
 /** A small tile: coloured label, big value, thin bar. */

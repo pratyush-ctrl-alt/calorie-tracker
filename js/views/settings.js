@@ -49,7 +49,7 @@ export function createSettingsView() {
       const saved = store.getConn();
       const same = saved.url === url.value.trim() && saved.key === key.value.trim() && saved.token === token.value.trim();
       connStatus.className = 'ok-text';
-      connStatus.textContent = `Connected. ${r.name ?? 'Database'} is ready.${same ? '' : ' These values are not saved yet: tap Save connection.'}`;
+      connStatus.textContent = `Connected. Your database is ready.${same ? '' : ' These values are not saved yet: tap Save connection.'}`;
     } catch (e) {
       connStatus.className = 'warn-text';
       connStatus.textContent = e.message;
@@ -156,7 +156,7 @@ export function createSettingsView() {
     csvMsg.textContent = 'Preparing…';
     const { entries, fromSheet } = await store.entriesForExport(from.value, to.value);
     const blob = new Blob(['﻿' + toCsv(entries)], { type: 'text/csv;charset=utf-8' });
-    const a = h('a', { href: URL.createObjectURL(blob), download: `plate-log_${from.value}_to_${to.value}.csv` });
+    const a = h('a', { href: URL.createObjectURL(blob), download: `calorie-tracker_${from.value}_to_${to.value}.csv` });
     document.body.append(a);
     a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);

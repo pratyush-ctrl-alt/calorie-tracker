@@ -1,4 +1,4 @@
-# Netlify settings for Plate Log. Netlify reads this file automatically.
+# Netlify settings for Calorie Tracker. Netlify reads this file automatically.
 # No framework and no build step: the "build" just gathers the site files into one folder.
 
 [build]

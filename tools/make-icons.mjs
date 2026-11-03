@@ -1,11 +1,12 @@
 // Generates the PNG icons with no dependencies:  node tools/make-icons.mjs
-// Three Activity-style rings on black. Full-bleed, so it also works as a maskable icon.
+// Three horizontal progress bars on black. Full-bleed, so it also works as a maskable icon.
 import { deflateSync } from 'node:zlib';
 import { writeFileSync, mkdirSync } from 'node:fs';
 
 const BG = [0, 0, 0];
-// three concentric rings in the app's metric colours (calories, protein, fibre)
-const RINGS = [[255, 55, 95], [164, 255, 46], [100, 210, 255]];
+// the app's three headline colours: calories (amber), protein (violet), fibre (sand)
+const BARS = [[255, 176, 32], [157, 140, 255], [216, 195, 154]];
+const FILL = [0.8, 0.58, 0.38]; // how full each bar is
 
 function crc32(buf) {
   let c, crc = 0xffffffff;
@@ -23,20 +24,34 @@ function chunk(type, data) {
   return Buffer.concat([len, td, crc]);
 }
 
+const mix = (c, a) => c.map((v, i) => Math.round(BG[i] * (1 - a) + v * a));
+
 function render(size, scale) {
   const raw = Buffer.alloc((size * 4 + 1) * size);
   const c = size / 2;
-  const thick = 0.085 * scale * size;
-  const radii = [0.36, 0.265, 0.17].map((r) => r * scale * size);
+  const barH = 0.125 * scale * size;
+  const pitch = 0.215 * scale * size;
+  const trackW = 0.60 * scale * size;
+  const x0 = c - trackW / 2 + barH / 2, x1 = c + trackW / 2 - barH / 2; // centre line of the rounded ends
   const SS = 3;
+  // distance from a point to a horizontal segment: inside a rounded bar when <= half its height
+  const inBar = (px, py, cy, from, to) => {
+    const dx = Math.min(Math.max(px, from), to);
+    return Math.hypot(px - dx, py - cy) <= barH / 2;
+  };
   for (let y = 0; y < size; y++) {
     raw[y * (size * 4 + 1)] = 0;
     for (let x = 0; x < size; x++) {
       const acc = [0, 0, 0];
       for (let sy = 0; sy < SS; sy++) for (let sx = 0; sx < SS; sx++) {
-        const r = Math.hypot(x + (sx + 0.5) / SS - c, y + (sy + 0.5) / SS - c);
+        const px = x + (sx + 0.5) / SS, py = y + (sy + 0.5) / SS;
         let col = BG;
-        radii.forEach((rad, i) => { if (Math.abs(r - rad) <= thick / 2) col = RINGS[i]; });
+        BARS.forEach((color, i) => {
+          const cy = c + (i - 1) * pitch;
+          const fillEnd = x0 + (x1 - x0) * FILL[i];
+          if (inBar(px, py, cy, x0, fillEnd)) col = color;
+          else if (inBar(px, py, cy, x0, x1)) col = mix(color, 0.22);
+        });
         for (let k = 0; k < 3; k++) acc[k] += col[k];
       }
       const o = y * (size * 4 + 1) + 1 + x * 4;

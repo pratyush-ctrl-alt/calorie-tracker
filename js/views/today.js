@@ -1,7 +1,7 @@
 import { h, todayStr, fmt, fmtFullDate, fmtTime12 } from '../util.js';
 import { SLOTS } from '../plan.js';
 import { totalsFor } from '../calc.js';
-import { largeTitle, nav, openEntrySheet, openQuickLog, ringsSvg, tile } from '../components.js';
+import { largeTitle, metricBar, nav, openEntrySheet, openQuickLog, tile } from '../components.js';
 import * as store from '../store.js';
 
 export function createTodayView() {
@@ -23,12 +23,6 @@ export function createTodayView() {
         : h('div', { class: 'left-stat met' },
           h('span', { class: 'left-num' }, 'Met'),
           h('span', { class: 'left-unit' }, 'protein target')));
-  }
-
-  function legendItem(label, color, value, target, unit) {
-    return h('div', { class: 'legend-item' },
-      h('span', { class: 'legend-label', style: `color:${color}` }, label),
-      h('span', { class: 'legend-value num' }, fmt(value, unit === 'kcal' ? 0 : 1), ' ', h('small', {}, `/ ${fmt(target, 0)} ${unit}`)));
   }
 
   function entryRow(e) {
@@ -56,21 +50,15 @@ export function createTodayView() {
     const summary = h('div', { class: 'card hero' },
       h('span', { class: 'eyebrow' }, 'Left today'),
       leftRow(t, s),
-      h('div', { class: 'summary' },
-        ringsSvg([
-          { value: t.kcal, target: s.calorie_target, color: over ? 'var(--orange)' : 'var(--m-kcal)' },
-          { value: t.protein, target: s.protein_target_g, color: 'var(--m-protein)' },
-          { value: t.fibre, target: s.fibre_target_g, color: 'var(--m-fibre)' },
-        ], `Calories ${fmt(t.kcal, 0)} of ${fmt(s.calorie_target, 0)}, protein ${fmt(t.protein)} of ${fmt(s.protein_target_g, 0)}, fibre ${fmt(t.fibre)} of ${fmt(s.fibre_target_g, 0)}`),
-        h('div', { class: 'legend' },
-          legendItem('Calories', over ? 'var(--orange)' : 'var(--m-kcal)', t.kcal, s.calorie_target, 'kcal'),
-          legendItem('Protein', 'var(--m-protein)', t.protein, s.protein_target_g, 'g'),
-          legendItem('Fibre', 'var(--m-fibre)', t.fibre, s.fibre_target_g, 'g'))),
+      h('div', { class: 'bars' },
+        metricBar({ label: 'Calories', color: 'var(--m-kcal)', value: t.kcal, target: s.calorie_target, unit: 'kcal', over, dp: 0 }),
+        metricBar({ label: 'Protein', color: 'var(--m-protein)', value: t.protein, target: s.protein_target_g, unit: 'g' }),
+        metricBar({ label: 'Fibre', color: 'var(--m-fibre)', value: t.fibre, target: s.fibre_target_g, unit: 'g' })),
       t.missing ? h('p', { class: 'hint' }, 'Some values are missing: unknown carbs, fat or fibre count as 0 here.') : null);
 
     const tiles = h('div', { class: 'tiles' },
-      tile({ label: 'Fat (limit)', color: 'var(--m-fat)', value: t.fat, unit: `/ ${fmt(s.fat_limit_g, 0)} g`, target: s.fat_limit_g, limit: true }),
-      tile({ label: 'Carbs', color: 'var(--m-carb)', value: t.carbs, unit: 'g' }));
+      tile({ label: 'Fat (limit)', color: 'var(--text2)', value: t.fat, unit: `/ ${fmt(s.fat_limit_g, 0)} g`, target: s.fat_limit_g, limit: true }),
+      tile({ label: 'Carbs', color: 'var(--text2)', value: t.carbs, unit: 'g' }));
 
     // Quick add: pinned items first, then the most used.
     const quick = store.quickItems();
