@@ -5,6 +5,9 @@
   command = "mkdir -p dist && cp -r index.html manifest.json css js icons dist/"
   publish = "dist"
 
+[functions]
+  directory = "netlify/functions"
+
 [[headers]]
   for = "/*"
   [headers.values]

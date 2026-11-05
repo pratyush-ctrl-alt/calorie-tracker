@@ -370,3 +370,6 @@ input[type='checkbox'].switch:checked::after { transform: translateX(20px); }
 .card > textarea { background: var(--fill); }
 
 .clear-wrap { display: flex; justify-content: flex-end; margin-top: -4px; }
+
+/* photo logging */
+.thumb { width: 100%; max-height: 220px; object-fit: cover; border-radius: 12px; display: block; }

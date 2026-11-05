@@ -2,6 +2,7 @@ import { h, todayStr, addDays } from '../util.js';
 import { DEFAULT_SETTINGS } from '../plan.js';
 import { LOG_HEADERS, numOrNull } from '../entries.js';
 import { field, largeTitle, numInput, toast } from '../components.js';
+import { photoStatus } from '../photo.js';
 import * as store from '../store.js';
 
 const TARGETS = [
@@ -126,6 +127,30 @@ export function createSettingsView() {
     ].filter(Boolean));
   }
 
+  // ---- photo logging check ---------------------------------------------------------------------------
+  const aiMsg = h('div', { class: 'sync-box', role: 'status' });
+  async function checkAi() {
+    const conn = store.getConn();
+    if (store.isDemo() || !conn.token) { aiMsg.replaceChildren(h('p', { class: 'warn-text' }, 'Connect your database first. Photo logging uses the same token.')); return; }
+    aiMsg.replaceChildren(h('p', { class: 'hint' }, 'Checking\u2026'));
+    try {
+      const r = await photoStatus(conn);
+      const missing = r.models.filter((m) => !m.available);
+      aiMsg.replaceChildren(...[
+        missing.length
+          ? h('p', { class: 'warn-text' }, `The key works, but Google does not list: ${missing.map((m) => m.id).join(', ')}. Set GEMINI_MODEL in Netlify to one of the IDs below.`)
+          : h('p', { class: 'ok-text' }, `Photo logging is ready. Model: ${r.models.map((m) => m.id).join(', ')}`),
+        h('p', { class: 'hint' }, `Flash models your key can use: ${r.availableFlashModels.join(', ') || 'none found'}`),
+      ].filter(Boolean));
+    } catch (e) {
+      aiMsg.replaceChildren(h('p', { class: 'warn-text' }, e.message));
+    }
+  }
+  const aiCard = h('div', { class: 'card' },
+    h('h2', { class: 'card-title' }, 'Photo logging'),
+    h('p', { class: 'hint' }, 'Estimates a meal from a photo using Google Gemini. The Gemini key is stored in Netlify, not on this phone. See SETUP.md, Part E.'),
+    h('button', { class: 'btn', type: 'button', onclick: checkAi }, 'Check photo logging'), aiMsg);
+
   // ---- targets -------------------------------------------------------------------------------------
   const inputs = {};
   const fillTargets = () => { const s = store.getSettings(); for (const [k] of TARGETS) if (document.activeElement !== inputs[k]) inputs[k].value = s[k]; };
@@ -170,7 +195,7 @@ export function createSettingsView() {
 
   el.append(
     largeTitle('Settings', 'Targets, database and export'),
-    connGroup, targetsCard, csvCard);
+    connGroup, aiCard, targetsCard, csvCard);
   renderSync();
 
   return {

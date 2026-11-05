@@ -87,7 +87,48 @@ Some app updates need a small database change (for example favourites in My Item
 
 ---
 
-## Part E. Good to know
+## Part E. Photo logging with Gemini (optional)
+
+This lets you photograph a meal and get an estimate. It needs a Gemini API key from Google, kept **only in Netlify**.
+
+### E1. Get a key
+1. Open <https://aistudio.google.com> → **Get API key**. You can reuse the key from your other app, but a **separate key (ideally in a separate Google project)** is better: then this app's usage and limits never touch your other app, and you can revoke one without breaking the other.
+2. Don't paste the key into chat, GitHub or the app.
+
+### E2. Add the variables in Netlify
+Netlify → your site → **Project configuration → Environment variables → Add a variable**:
+
+| Variable | Value | Notes |
+|---|---|---|
+| `GEMINI_API_KEY` | your Gemini key | mark it as a **secret** |
+| `SUPABASE_URL` | the same Project URL you type into the app | e.g. `https://abcdefgh.supabase.co` (no `/rest/v1/`) |
+| `SUPABASE_ANON_KEY` | the same public key you type into the app | the anon / publishable one, never the secret key |
+| `GEMINI_MODEL` (optional) | a model ID, or several separated by commas | default `gemini-3.1-flash-lite`. Example: `gemini-3.1-flash-lite,gemini-3-flash` tries the second if the first is out of quota |
+
+### E3. Redeploy
+Environment variables only reach the site on a new deploy: Netlify → **Deploys → Trigger deploy → Deploy project without cache**.
+
+### E4. Check it
+In the app: **Settings → Photo logging → Check photo logging**. It should say "Photo logging is ready". If it says Google does not list your model, it also shows the model IDs your key can use: copy one into `GEMINI_MODEL` and redeploy.
+
+### E5. Use it
+**Log → Add a photo**. Check the numbers in the preview and tap Save.
+
+### If something goes wrong
+| It says | What to do |
+|---|---|
+| "…not set up on the server yet. Add these in Netlify: …" | Add the named variables (E2) and redeploy (E3). |
+| "Wrong or missing token" | The token in the app does not match your database. See Part C. |
+| "Google rejected the Gemini API key" | Re-copy the key into `GEMINI_API_KEY`, redeploy. |
+| "…limit … has been reached" | You used that model's daily or per-minute allowance. Wait, or add a second model to `GEMINI_MODEL`. |
+| "Gemini does not know the model …" | Use Check photo logging to see valid IDs, then fix `GEMINI_MODEL`. |
+| "Photo logging is not available on this site yet" | The site is not running on Netlify with functions (for example you opened a local copy). |
+
+**Privacy:** the photo goes to Google to be analysed and is not stored by this app. As I understand Google's terms, the free tier may use submitted content to improve Google's products. Check their current terms.
+
+---
+
+## Part F. Good to know
 
 - **Free projects pause** after about a week with no use. Nothing is lost: entries you add meanwhile wait on the phone and sync after you restore the project in the dashboard. Opening the app every few days avoids it.
 - **Backups:** don't rely on the free plan for them. Every month or so, use **Settings → Download CSV** and keep the file.

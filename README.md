@@ -4,7 +4,7 @@ A small personal calorie and macro logger for one person, used on a phone.
 
 Most meals arrive as a single line of text that another AI (Gemini, ChatGPT or Claude) writes after you send it a food photo. You paste that line into Plate Log. The app parses it with plain code, stores it in your own Supabase database, and shows today's numbers, the last 7 days and the month against your targets. It is tuned to a nutritionist's plan: a pre-made "Kenko" dinner box most days, plus fixed plan options for the other meals.
 
-**There is no AI or LLM in the app and no AI API key anywhere.** Parsing is a pure function in `js/parser.js`.
+**The text parser is plain code with no AI** (`js/parser.js`). The one exception is the optional **photo logging**: you take a photo and Google Gemini estimates the meal. This reverses the original "no AI or API keys anywhere" rule, at the owner's request. The Gemini key is kept only in Netlify's environment variables, never in this repository or on the phone. See "Photo logging" below.
 
 ## How it works
 
@@ -41,6 +41,17 @@ Lunch | Dal, rice, bhindi, curd | 720 kcal | 28g P | 95g C | 22g F | 9g Fib
 - Markdown noise (backticks, code fences, `**`, bullets, quotes) is stripped. Several lines make several entries, and one bad line does not block the others.
 - A line that is only a saved item's name or alias (for example `coffee`), or a plan-menu option's name, logs that item. `kenko` alone logs the Kenko meal.
 - Nothing is saved until you tap Save on the preview, where every field can be corrected first.
+
+## Photo logging (optional)
+
+Log → **Add a photo**. The photo is shrunk on the phone (about 1280 px JPEG, location data removed), sent to a Netlify Function, which asks Gemini for a nutrition estimate. The estimate fills the paste box and the normal preview cards, so **nothing is saved until you tap Save**, and you can edit any number first. "Estimate again" accepts an optional note ("I only ate half").
+
+- **Where the key lives:** only in Netlify environment variables (`GEMINI_API_KEY`). The app and the repository never contain it.
+- **Who may use it:** the function checks your app token against your Supabase database before it calls Gemini, so strangers cannot spend your Gemini quota.
+- **Setup:** SETUP.md, Part E. In the app, Settings → Photo logging → Check shows whether it is ready and lists the model IDs your key can use.
+- **Model:** default `gemini-3.1-flash-lite`. Set `GEMINI_MODEL` in Netlify to change it, or give a comma-separated list to fall over to the next model when one hits its quota.
+- **Privacy:** photos are sent to Google to be analysed and are not stored by this app. As I understand Google's terms, content sent through the free tier of the Gemini API may be used to improve Google's products, while paid usage is not. Check Google's current terms if that matters to you.
+- **Accuracy:** it is an estimate from one picture. Portion size and oil are guesses. Treat it as a fast first draft.
 
 ## The Gemini prompt
 
@@ -99,6 +110,15 @@ Where the brief was ambiguous I picked the simplest option. Say if you want any 
 - **Week and Month are now one tab, Trends**, with a Last 7 days / Month switch.
 - **Database section in Settings** opens by itself only in Demo mode or when something is wrong; when connected it is a single row you can tap to open.
 - **Favourites need a one-time database update** (re-run `supabase/schema.sql`; safe, keeps your data). Until then the app shows a clear notice, pins are refused with an explanation, and Quick add falls back to your most used items.
+
+### Photo logging
+
+- **Preview first, never auto-save.** AI estimates are sometimes wrong, so the result goes through the same editable preview cards as a pasted line. Saving is one tap.
+- **Entries are stored as "From text"** (source `line`), so no database change was needed for photos.
+- **Token check through Supabase.** The function calls `plate_ping` with your token, using `SUPABASE_URL` and `SUPABASE_ANON_KEY` from Netlify. It never trusts a URL sent by the phone.
+- **Time budget.** Netlify functions stop after about 10 seconds by default, so each Gemini attempt is capped and the whole call stays under about 9 seconds. If a model is slow or out of quota, the next model in `GEMINI_MODEL` is tried.
+- **A separate model from other apps.** Gemini limits are listed per model, so using a model your other apps do not use leaves their allowance alone. A separate Google project (separate key) would separate them completely.
+- **Not tested against the real Gemini service**, because that needs your key. The function is tested against a fake Google and the real database logic. Use Settings, Photo logging, Check to confirm your setup.
 
 ### Behaviour
 

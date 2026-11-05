@@ -3,6 +3,7 @@ import { parseLog } from '../parser.js';
 import { GEMINI_PROMPT, EXAMPLE_LINE } from '../prompt.js';
 import { buildEntry, validateEntry, numOrNull, NUM_FIELDS } from '../entries.js';
 import { copyText, field, largeTitle, nav, numInput, openEntrySheet, openQuickLog, slotSelect, switchRow, toast } from '../components.js';
+import { analyzePhoto, compressImage, entriesToLines } from '../photo.js';
 import * as store from '../store.js';
 
 const NUM_LABELS = { kcal: 'kcal', protein_g: 'Protein', carbs_g: 'Carbs', fat_g: 'Fat', fibre_g: 'Fibre' };
@@ -104,10 +105,86 @@ export function createLogView() {
     const skipped = cards.length - good.length;
     ta.value = '';
     clearWrap.hidden = true;
+    resetPhoto();
     edits.clear();
     reparse();
     toast(`Saved ${good.length} ${good.length === 1 ? 'entry' : 'entries'}${skipped ? `, ${skipped} line${skipped === 1 ? '' : 's'} skipped` : ''}`);
     if (date === todayStr()) nav.go('today');
+  }
+
+  // ---- photo -> AI estimate -> the usual preview cards (nothing is saved until you tap Save) -------------
+  const PHOTO_HINT = 'Take or choose a photo of your meal. AI estimates the numbers and you check them before saving.';
+  const photoInput = h('input', { type: 'file', accept: 'image/*', hidden: true, 'aria-label': 'Choose a photo', onchange: (e) => onPhoto(e.target.files?.[0]) });
+  const thumb = h('img', { class: 'thumb', alt: 'Your photo', hidden: true });
+  const photoMsg = h('p', { class: 'hint', role: 'status' }, PHOTO_HINT);
+  const photoNote = h('input', { type: 'text', placeholder: 'Optional: anything the photo does not show', autocomplete: 'off', hidden: true, 'aria-label': 'Note about the photo' });
+  const reBtn = h('button', { class: 'btn small', type: 'button', hidden: true, onclick: () => runAnalysis() }, 'Estimate again');
+  const photoBtn = h('button', { class: 'btn block', type: 'button', onclick: () => photoInput.click() }, 'Add a photo');
+  let photo = null;
+  let busy = false;
+  let thumbUrl = '';
+  let photoText = ''; // the lines the last estimate put in the box, so "Estimate again" replaces them
+
+  const say = (text, cls = 'hint') => { photoMsg.className = cls; photoMsg.textContent = text; };
+
+  function resetPhoto() {
+    photo = null;
+    photoText = '';
+    if (thumbUrl) URL.revokeObjectURL(thumbUrl);
+    thumbUrl = '';
+    thumb.hidden = true;
+    photoNote.hidden = true;
+    photoNote.value = '';
+    reBtn.hidden = true;
+    say(PHOTO_HINT);
+  }
+
+  async function onPhoto(file) {
+    photoInput.value = '';
+    if (!file) return;
+    try {
+      say('Preparing your photo\u2026');
+      photo = await compressImage(file);
+      if (thumbUrl) URL.revokeObjectURL(thumbUrl);
+      thumbUrl = URL.createObjectURL(photo.blob);
+      thumb.src = thumbUrl;
+      thumb.hidden = false;
+      photoNote.hidden = false;
+      photoText = '';
+      await runAnalysis();
+    } catch (err) {
+      say(err.message, 'warn-text');
+    }
+  }
+
+  async function runAnalysis() {
+    if (!photo || busy) return;
+    const conn = store.getConn();
+    if (store.isDemo() || !conn.token) { say('Connect your database first (Settings). Photo logging uses the same token.', 'warn-text'); return; }
+    busy = true;
+    photoBtn.disabled = true;
+    reBtn.hidden = true;
+    say('Estimating from your photo\u2026');
+    try {
+      const r = await analyzePhoto(conn, { base64: photo.base64, mime: photo.mime, note: photoNote.value.trim() });
+      if (!r.items.length) {
+        say(r.notes || 'No food found in the photo.', 'warn-text');
+      } else {
+        const lines = entriesToLines(r.items);
+        const rest = photoText ? ta.value.replace(photoText, '').trim() : ta.value.trim();
+        photoText = lines;
+        ta.value = rest ? `${rest}\n${lines}` : lines;
+        clearWrap.hidden = false;
+        reparse();
+        say(`Estimated by AI${r.confidence === 'low' ? ' (not very sure)' : ''}. Check the numbers, then save.${r.notes ? ` ${r.notes}` : ''}`);
+      }
+    } catch (err) {
+      say(err.message, 'warn-text');
+    } finally {
+      busy = false;
+      photoBtn.disabled = false;
+      reBtn.hidden = false;
+    }
   }
 
   const afterLog = (date) => { if (date === todayStr()) nav.go('today'); };
@@ -134,6 +211,7 @@ export function createLogView() {
 
   el.append(
     largeTitle('Log', 'Add what you ate'),
+    h('div', { class: 'card' }, photoBtn, photoInput, thumb, photoNote, h('div', { class: 'row-btns' }, reBtn), photoMsg),
     h('div', { class: 'card' },
       ta,
       h('div', { class: 'switch-row' }, h('span', {}, 'Date'), dateIn),
