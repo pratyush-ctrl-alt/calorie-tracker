@@ -22,7 +22,7 @@ Tabs: **Today · Log · My Items · Trends · Settings** (naming borrowed from f
 - **Today:** "Left today" as two big numbers (kcal left, g protein to go), horizontal progress bars for calories, protein and fibre, neutral tiles for fat and carbs, a Quick add row and the day's meals.
 - **Log:** paste a line (or type a saved item's name), check the preview, save. Also Quick add, and "Enter numbers" for manual entries.
 - **My Items:** everything you save, with search. Star up to 5 to pin them to Quick add; your most used items fill any free spots.
-- **Trends:** the last 7 days (scorecard, charts, day by day) or a month (week by week, off-plan list).
+- **Trends:** the last 7 days (scorecard, a daily trend chart, day by day) or a month (week by week, the same daily chart for each day of the month, off-plan list). The chart has a picker for **Calories, Protein, Carbs, Fat or Fibre**; the choice is remembered and shared by both views.
 - **Settings:** the database connection (collapses once connected), daily targets, CSV export.
 
 Setup steps are in [SETUP.md](SETUP.md).
@@ -119,6 +119,13 @@ Where the brief was ambiguous I picked the simplest option. Say if you want any 
 - **Time budget.** Netlify functions stop after about 10 seconds by default, so each Gemini attempt is capped and the whole call stays under about 9 seconds. If a model is slow or out of quota, the next model in `GEMINI_MODEL` is tried.
 - **A separate model from other apps.** Gemini limits are listed per model, so using a model your other apps do not use leaves their allowance alone. A separate Google project (separate key) would separate them completely.
 - **Not tested against the real Gemini service**, because that needs your key. The function is tested against a fake Google and the real database logic. Use Settings, Photo logging, Check to confirm your setup.
+
+### Trends colours (version 2.1)
+
+- **Green, yellow, red** colour the numbers in Day by day and the bars in the Daily trend chart. A legend sits above the table, and a one-line explanation of the thresholds under the chart (it follows your Settings).
+- **My thresholds (not from the nutritionist's plan; easy to change):** calories green within the calorie band (±10%), yellow within twice the band, red beyond; protein green at the "protein hit" mark (120 g), yellow from 80% of the protein target, red below; fat green at or under the limit, yellow up to 15% over, red beyond; fibre green at the target, yellow from 80% of it, red below. Carbs have no target, so they are never coloured and their chart bars are plain grey.
+- **Markers instead of chips:** the old status chips under each day are gone so the columns line up. An orange dot after the date means an off-plan entry that day, and `*` means some carbs, fat or fibre values were missing (counted as 0).
+- **Month chart:** one bar per finished day; today and future days have no bar, consistent with the other Trends numbers.
 
 ### Behaviour
 

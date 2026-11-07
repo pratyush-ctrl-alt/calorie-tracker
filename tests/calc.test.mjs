@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { totalsFor, dayStatus, summarize, groupByDate, weekWindow, weeksOfMonth, kcalOnTarget } from '../js/calc.js';
+import { totalsFor, dayStatus, summarize, groupByDate, weekWindow, weeksOfMonth, kcalOnTarget, rate, explainRating, METRICS } from '../js/calc.js';
 import { DEFAULT_SETTINGS } from '../js/plan.js';
 import { buildEntry, scaleFood, validateEntry, kenkoFields } from '../js/entries.js';
 import { GEMINI_PROMPT } from '../js/prompt.js';
@@ -91,4 +91,41 @@ test('entry validation and kenko builder', () => {
 test('the Gemini prompt in README.md matches the one in the app', () => {
   const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
   assert.ok(readme.includes(GEMINI_PROMPT), 'README.md must contain the exact prompt from js/prompt.js');
+});
+
+test('rating: calories are green within the band, yellow within twice the band, red beyond', () => {
+  assert.equal(rate('kcal', 2037, S), 'good');
+  assert.equal(rate('kcal', 1885, S), 'good');      // -7.5%
+  assert.equal(rate('kcal', 1730, S), 'warn');      // -15%
+  assert.equal(rate('kcal', 2105, S), 'good');      // +3.3%
+  assert.equal(rate('kcal', 2500, S), 'bad');       // +22.7%
+  assert.equal(rate('kcal', 1500, S), 'bad');
+});
+
+test('rating: protein, fat and fibre thresholds', () => {
+  assert.equal(rate('protein', 120, S), 'good');
+  assert.equal(rate('protein', 116.1, S), 'warn');
+  assert.equal(rate('protein', 107.3, S), 'warn');
+  assert.equal(rate('protein', 90, S), 'bad');
+  assert.equal(rate('fat', 60, S), 'good');
+  assert.equal(rate('fat', 63.7, S), 'warn');
+  assert.equal(rate('fat', 69, S), 'warn');
+  assert.equal(rate('fat', 81.7, S), 'bad');
+  assert.equal(rate('fibre', 32.7, S), 'good');
+  assert.equal(rate('fibre', 25, S), 'warn');
+  assert.equal(rate('fibre', 10, S), 'bad');
+});
+
+test('rating: carbs are never rated, and a missing value is not rated', () => {
+  assert.equal(rate('carbs', 250, S), null);
+  assert.equal(rate('kcal', null, S), null);
+  assert.equal(rate('nonsense', 5, S), null);
+});
+
+test('rating follows edited settings, and every metric has an explanation', () => {
+  const custom = { ...S, calorie_target: 1800, calorie_band_pct: 5, fat_limit_g: 50 };
+  assert.equal(rate('kcal', 1900, custom), 'warn');   // +5.6% is outside 5% but inside 10%
+  assert.equal(rate('fat', 55, custom), 'warn');
+  for (const m of Object.keys(METRICS)) assert.ok(explainRating(m, S).length > 10, m);
+  assert.match(explainRating('kcal', S), /10%/);
 });

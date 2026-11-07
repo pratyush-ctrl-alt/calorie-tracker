@@ -89,3 +89,52 @@ export function weeksOfMonth(year, month0) {
 
 export const monthKey = (date) => date.slice(0, 7);
 export { parseYmd };
+
+// ---- trend metrics and the green / yellow / red rating --------------------------------------------
+// Green = on target, yellow = close, red = off target. Carbs have no target, so they are never rated.
+
+export const METRICS = {
+  kcal: { key: 'kcal', label: 'Calories', short: 'Calories', unit: 'kcal' },
+  protein: { key: 'protein', label: 'Protein', short: 'Protein', unit: 'g' },
+  carbs: { key: 'carbs', label: 'Carbs', short: 'Carbs', unit: 'g' },
+  fat: { key: 'fat', label: 'Fat', short: 'Fat', unit: 'g' },
+  fibre: { key: 'fibre', label: 'Fibre', short: 'Fibre', unit: 'g' },
+};
+
+/**
+ * 'good' | 'warn' | 'bad' | null (null = no target, or nothing logged).
+ *  kcal:    good within the calorie band (default +/-10%), warn within twice the band, else bad
+ *  protein: good at the "protein hit" mark, warn from 80% of the protein target, else bad
+ *  fat:     good at or under the limit, warn up to 15% over, else bad
+ *  fibre:   good at the target, warn from 80% of the target, else bad
+ */
+export function rate(metric, value, s) {
+  if (value === null || value === undefined) return null;
+  switch (metric) {
+    case 'kcal': {
+      const dev = Math.abs(value - s.calorie_target) / s.calorie_target;
+      const band = s.calorie_band_pct / 100;
+      return dev <= band ? 'good' : dev <= 2 * band ? 'warn' : 'bad';
+    }
+    case 'protein':
+      return value >= s.protein_hit_g ? 'good' : value >= 0.8 * s.protein_target_g ? 'warn' : 'bad';
+    case 'fat':
+      return value <= s.fat_limit_g ? 'good' : value <= 1.15 * s.fat_limit_g ? 'warn' : 'bad';
+    case 'fibre':
+      return value >= s.fibre_target_g ? 'good' : value >= 0.8 * s.fibre_target_g ? 'warn' : 'bad';
+    default:
+      return null;
+  }
+}
+
+/** One plain sentence saying what green / yellow / red mean for a metric. */
+export function explainRating(metric, s) {
+  const n = (x) => Math.round(x).toLocaleString('en-IN');
+  switch (metric) {
+    case 'kcal': return `Green: within ±${s.calorie_band_pct}% of ${n(s.calorie_target)} kcal. Yellow: within ±${2 * s.calorie_band_pct}%. Red: further off.`;
+    case 'protein': return `Green: ${n(s.protein_hit_g)} g or more. Yellow: ${n(0.8 * s.protein_target_g)} to ${n(s.protein_hit_g)} g. Red: below that.`;
+    case 'fat': return `Green: ${n(s.fat_limit_g)} g or less. Yellow: up to ${n(1.15 * s.fat_limit_g)} g. Red: more than that.`;
+    case 'fibre': return `Green: ${n(s.fibre_target_g)} g or more. Yellow: ${n(0.8 * s.fibre_target_g)} to ${n(s.fibre_target_g)} g. Red: less.`;
+    default: return 'Carbs have no target, so they are not coloured.';
+  }
+}

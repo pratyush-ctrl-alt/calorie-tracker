@@ -21,6 +21,9 @@
   --orange: #ff9500;
   --yellow: #ffcc00;
   --bar: rgba(249, 249, 249, 0.8);
+  --good: #248a3d;
+  --warnc: #a87a00;
+  --badc: #d70015;
   --sheet-field: #ffffff;
 
   /* the three headline metrics. Fat and carbs stay neutral on purpose. */
@@ -48,6 +51,9 @@
     --orange: #ff9f0a;
     --yellow: #ffd60a;
     --bar: rgba(22, 22, 24, 0.8);
+    --good: #30d158;
+    --warnc: #ffd60a;
+    --badc: #ff453a;
     --sheet-field: #2c2c2e;
     --m-kcal: #ffb020;
     --m-protein: #9d8cff;
@@ -330,9 +336,10 @@ input[type='checkbox'].switch:checked::after { transform: translateX(20px); }
 .c-band { fill: var(--m-kcal); opacity: 0.18; }
 .c-target { stroke: var(--text); stroke-width: 1; stroke-dasharray: 4 3; opacity: 0.5; }
 .c-bar { fill: var(--text3); opacity: 0.5; }
-.c-bar.good { opacity: 1; }
-.c-bar.good.kcal { fill: var(--m-kcal); }
-.c-bar.good.protein { fill: var(--m-protein); }
+.c-bar.good { fill: var(--good); opacity: 1; }
+.c-bar.warn { fill: var(--warnc); opacity: 1; }
+.c-bar.bad { fill: var(--badc); opacity: 1; }
+.c-bar.plain { fill: var(--text2); opacity: 0.75; }
 
 /* ---------- Settings ---------- */
 .sync-box { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
@@ -373,3 +380,25 @@ input[type='checkbox'].switch:checked::after { transform: translateX(20px); }
 
 /* photo logging */
 .thumb { width: 100%; max-height: 220px; object-fit: cover; border-radius: 12px; display: block; }
+
+/* Trends: metric picker, legend, coloured numbers */
+.seg-small .seg-btn { font-size: 13px; padding: 0 2px; }
+.trend-avg { font-size: 15px; }
+.trend-avg strong { font-size: 22px; font-weight: 700; }
+.legend-row { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--text2); }
+.lg-item { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.lg-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.lg-dot.good { background: var(--good); }
+.lg-dot.warn { background: var(--warnc); }
+.lg-dot.bad { background: var(--badc); }
+.lg-dot.off, .dot-off { background: var(--orange); }
+.dot-off { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-left: 6px; vertical-align: 2px; }
+.lg-star { color: var(--text2); font-weight: 700; margin-left: 2px; }
+.tbl.days td.num { font-weight: 700; font-size: 15px; padding-left: 4px; padding-right: 4px; }
+.tbl.days th, .tbl.days td { padding: 11px 4px; }
+.tbl.days th.r { padding-left: 4px; padding-right: 4px; }
+.tbl.days tbody tr:last-child th, .tbl.days tbody tr:last-child td { border-bottom: 0; }
+.v-good { color: var(--good); }
+.v-warn { color: var(--warnc); }
+.v-bad { color: var(--badc); }
+.v-none { color: var(--text); }

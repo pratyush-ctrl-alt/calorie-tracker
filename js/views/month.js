@@ -1,11 +1,13 @@
 import { h, todayStr, fmt, fmtDayMonth, fmtShort, monthLabel, parseYmd } from '../util.js';
-import { groupByDate, summarize, weeksOfMonth } from '../calc.js';
+import { dayStatus, groupByDate, summarize, weeksOfMonth } from '../calc.js';
+import { createTrendCard } from './trend-card.js';
 import * as store from '../store.js';
 
 export function createMonthView() {
   const el = h('section', { class: 'view', id: 'view-month', 'aria-label': 'Month' });
   const now = new Date();
   const ui = { year: now.getFullYear(), month: now.getMonth() };
+  const trend = createTrendCard();
 
   function shift(delta) {
     const d = new Date(ui.year, ui.month + delta, 1);
@@ -65,7 +67,16 @@ export function createMonthView() {
         h('p', { class: 'muted small' }, `${off.length} off-plan ${off.length === 1 ? 'entry' : 'entries'}, ${fmt(offKcal, 0)} kcal in total (includes today).`)]
         : h('p', { class: 'empty' }, 'No off-plan entries this month.'));
 
-    el.replaceChildren(picker, table, offCard);
+    // one bar per day of the month; days that are not logged, or not finished yet, have no bar
+    trend.set({
+      days: all.map((d) => {
+        const st = d < today ? dayStatus(d, byDate.get(d) ?? [], s) : null;
+        return { date: d, totals: st?.logged ? st.totals : null };
+      }),
+      compact: true, period: monthLabel(ui.year, ui.month),
+    });
+
+    el.replaceChildren(picker, table, trend.el, offCard);
   }
 
   return { el, update: render, onShow: render };
