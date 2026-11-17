@@ -138,7 +138,7 @@ export function createSettingsView() {
       const missing = r.models.filter((m) => !m.available);
       aiMsg.replaceChildren(...[
         missing.length
-          ? h('p', { class: 'warn-text' }, `The key works, but Google does not list: ${missing.map((m) => m.id).join(', ')}. Set GEMINI_MODEL in Netlify to one of the IDs below.`)
+          ? h('p', { class: 'warn-text' }, `The key works, but Google does not list: ${missing.map((m) => m.id).join(', ')}. Set GEMINI_MODEL in Cloudflare to one of the IDs below.`)
           : h('p', { class: 'ok-text' }, `Photo logging is ready. Model: ${r.models.map((m) => m.id).join(', ')}`),
         h('p', { class: 'hint' }, `Flash models your key can use: ${r.availableFlashModels.join(', ') || 'none found'}`),
       ].filter(Boolean));
@@ -148,7 +148,7 @@ export function createSettingsView() {
   }
   const aiCard = h('div', { class: 'card' },
     h('h2', { class: 'card-title' }, 'Photo logging'),
-    h('p', { class: 'hint' }, 'Estimates a meal from a photo using Google Gemini. The Gemini key is stored in Netlify, not on this phone. See SETUP.md, Part E.'),
+    h('p', { class: 'hint' }, 'Estimates a meal from a photo using Google Gemini. The Gemini key is stored in Cloudflare, not on this phone. See SETUP.md, Part E.'),
     h('button', { class: 'btn', type: 'button', onclick: checkAi }, 'Check photo logging'), aiMsg);
 
   // ---- targets -------------------------------------------------------------------------------------

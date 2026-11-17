@@ -1,5 +1,5 @@
-// Photo logging, browser side. The Gemini call itself happens in the Netlify Function
-// (netlify/functions/analyze-photo.mjs) so the Gemini key never reaches the phone.
+// Photo logging, browser side. The Gemini call itself happens in a Cloudflare Pages Function
+// (functions/api/analyze-photo.js -> server/analyze-photo.mjs) so the Gemini key never reaches the phone.
 
 /** Entries from the function -> log lines the normal parser understands. Pure, so it is tested. */
 export function entriesToLines(entries) {
@@ -60,7 +60,7 @@ async function call(payload, timeoutMs) {
   try { json = await res.json(); } catch { /* not JSON */ }
   if (res.ok && json?.ok) return json;
   if (res.status === 404 || !json) {
-    throw new Error('Photo logging is not available on this site yet. It needs the Netlify setup described in SETUP.md.');
+    throw new Error('Photo logging is not available on this site yet. It needs the Cloudflare setup described in SETUP.md.');
   }
   throw new Error(json.error || `Photo logging failed (${res.status}).`);
 }

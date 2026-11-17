@@ -1,6 +1,7 @@
 import test, { beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
-import handler, { normalizeResult, buildPrompt, guessSlot } from '../netlify/functions/analyze-photo.mjs';
+import handler, { normalizeResult, buildPrompt, guessSlot } from '../server/analyze-photo.mjs';
+import { onRequestPost } from '../functions/api/analyze-photo.js';
 import { entriesToLines } from '../js/photo.js';
 
 const realFetch = globalThis.fetch;
@@ -34,7 +35,7 @@ function installFetch() {
   };
 }
 const ok = (obj) => ({ status: 200, body: { candidates: [{ content: { parts: [{ text: typeof obj === 'string' ? obj : JSON.stringify(obj) }] } }] } });
-const post = (body) => handler(new Request('https://x.netlify.app/api/analyze-photo', { method: 'POST', body: JSON.stringify(body) }));
+const post = (body) => handler(new Request('https://x.pages.dev/api/analyze-photo', { method: 'POST', body: JSON.stringify(body) }));
 const photo = (o = {}) => post({ token: 'tok', image: IMG, mimeType: 'image/jpeg', hour: 13, ...o });
 
 beforeEach(() => {
@@ -72,6 +73,21 @@ test('the token is verified against Supabase before anything goes to Gemini', as
   const ping = calls[0];
   assert.equal(JSON.parse(ping.init.body).p_token, 'tok');
   assert.equal(ping.init.headers.apikey, 'anon');
+});
+
+test('the Cloudflare wrapper reads the variables from context.env, not process.env', async () => {
+  delete process.env.GEMINI_API_KEY;
+  delete process.env.SUPABASE_URL;
+  delete process.env.SUPABASE_ANON_KEY;
+  geminiPlan = [ok(GOOD)];
+  const request = new Request('https://x.pages.dev/api/analyze-photo', { method: 'POST', body: JSON.stringify({ token: 'tok', image: IMG, mimeType: 'image/jpeg', hour: 13 }) });
+  const env = { GEMINI_API_KEY: 'cf-key', SUPABASE_URL: 'https://cf.supabase.co/', SUPABASE_ANON_KEY: 'cf-anon' };
+  const res = await onRequestPost({ request, env });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).ok, true);
+  assert.equal(calls[0].url, 'https://cf.supabase.co/rest/v1/rpc/plate_ping');
+  assert.equal(calls[0].init.headers.apikey, 'cf-anon');
+  assert.equal(calls.find((c) => c.url.includes(':generateContent')).init.headers['x-goog-api-key'], 'cf-key');
 });
 
 test('missing setup is explained in plain English and names the missing variables', async () => {

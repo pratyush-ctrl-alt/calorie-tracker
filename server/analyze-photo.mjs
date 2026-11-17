@@ -1,28 +1,31 @@
-// Netlify Function: estimates the nutrition of a food photo with the Gemini API.
+// Estimates the nutrition of a food photo with the Gemini API. Runs as a Cloudflare Pages
+// Function: functions/api/analyze-photo.js is a two-line wrapper that calls the handler below.
 //
 //   POST /api/analyze-photo   { token, image (base64 jpeg/png/webp), mimeType, note?, hour? }
 //   POST /api/analyze-photo   { token, action: "status" }      -> checks the setup, lists model IDs
 //
-// The Gemini key lives ONLY in Netlify's environment variables, never in the app or the repo.
+// The Gemini key lives ONLY in Cloudflare's environment variables, never in the app or the repo.
 // Every request must carry the app's token, which is checked against your Supabase database, so
 // strangers cannot spend your Gemini quota.
 //
-// Environment variables (Netlify: Site configuration -> Environment variables):
+// Environment variables (Cloudflare: Workers & Pages -> your project -> Settings -> Variables and Secrets):
 //   GEMINI_API_KEY      required   your Gemini API key
 //   SUPABASE_URL        required   the same project URL you type into the app
 //   SUPABASE_ANON_KEY   required   the same public key you type into the app
 //   GEMINI_MODEL        optional   model ID, or a comma separated list tried in order
 //                                  (default: gemini-3.1-flash-lite)
 
-export const config = { path: '/api/analyze-photo' };
-
 const SLOTS = ['Breakfast', 'Lunch', 'Snack', 'Dinner', 'Workout'];
 const DEFAULT_MODELS = ['gemini-3.1-flash-lite'];
 const MAX_IMAGE_CHARS = 4_500_000;            // base64 characters (about 3.3 MB of image)
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
-const BUDGET_MS = 9000;                        // Netlify's default function limit is 10 s
+const BUDGET_MS = 20000;                       // the phone gives up after 28 s (js/photo.js)
+const ATTEMPT_MS = 15000;                      // longest single Gemini call
 
-const env = (k) => globalThis.Netlify?.env?.get?.(k) ?? process.env[k];
+// Cloudflare hands the variables to the handler (context.env). Under Node (the tests) they come
+// from process.env instead. `process` does not exist in Cloudflare by default, hence the guard.
+let vars = {};
+const env = (k) => vars?.[k] ?? (typeof process !== 'undefined' ? process.env?.[k] : undefined);
 
 const reply = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
 const fail = (status, error, code, extra = {}) => reply(status, { ok: false, error, code, ...extra });
@@ -113,7 +116,8 @@ async function listModels(key) {
   return { ids };
 }
 
-export default async function handler(req) {
+export default async function handler(req, envVars = {}) {
+  vars = envVars ?? {};
   if (req.method !== 'POST') return fail(405, 'Use POST.', 'method');
 
   let body;
@@ -125,7 +129,7 @@ export default async function handler(req) {
 
   const missing = ['GEMINI_API_KEY', 'SUPABASE_URL', 'SUPABASE_ANON_KEY'].filter((k) => !String(env(k) ?? '').trim());
   if (missing.length) {
-    return fail(500, `Photo logging is not set up on the server yet. Add these in Netlify: ${missing.join(', ')} (see SETUP.md).`, 'not_configured', { missing });
+    return fail(500, `Photo logging is not set up on the server yet. Add these in Cloudflare: ${missing.join(', ')} (see SETUP.md).`, 'not_configured', { missing });
   }
   const key = env('GEMINI_API_KEY').trim();
 
@@ -161,7 +165,7 @@ export default async function handler(req) {
     if (left < 1500) break;
     let r;
     try {
-      r = await gemini(`models/${encodeURIComponent(model)}:generateContent`, key, { method: 'POST', body: JSON.stringify(payload) }, Math.min(left, 8000));
+      r = await gemini(`models/${encodeURIComponent(model)}:generateContent`, key, { method: 'POST', body: JSON.stringify(payload) }, Math.min(left, ATTEMPT_MS));
     } catch { lastProblem = { code: 'timeout', error: 'Gemini took too long to answer. Try again.' }; continue; }
 
     if (r.status === 200) {
@@ -172,8 +176,8 @@ export default async function handler(req) {
     }
     const msg = r.json?.error?.message ?? `Google answered ${r.status}`;
     if (r.status === 429) lastProblem = { code: 'quota', error: `The daily or per-minute Gemini limit for ${model} has been reached. Try again later.` };
-    else if (r.status === 404) lastProblem = { code: 'model_not_found', error: `Gemini does not know the model "${model}". Open Settings, Photo logging, Check, to see the valid IDs, then set GEMINI_MODEL in Netlify.` };
-    else if (r.status === 400 && /api key/i.test(msg)) return fail(502, 'Google rejected the Gemini API key. Check GEMINI_API_KEY in Netlify.', 'bad_gemini_key');
+    else if (r.status === 404) lastProblem = { code: 'model_not_found', error: `Gemini does not know the model "${model}". Open Settings, Photo logging, Check, to see the valid IDs, then set GEMINI_MODEL in Cloudflare.` };
+    else if (r.status === 400 && /api key/i.test(msg)) return fail(502, 'Google rejected the Gemini API key. Check GEMINI_API_KEY in Cloudflare.', 'bad_gemini_key');
     else if (r.status === 403) return fail(502, 'Google refused the request: this API key may not be allowed to use Gemini. Check the key in Google AI Studio.', 'gemini_forbidden');
     else lastProblem = { code: 'gemini_error', error: `Gemini error: ${msg}` };
   }

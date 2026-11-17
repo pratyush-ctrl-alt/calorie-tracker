@@ -1,7 +1,7 @@
 name: Tests
 
 # Runs the automated tests on every push to main and on pull requests.
-# (Hosting is done by Netlify, which deploys on its own when main changes.)
+# (Hosting is done by Cloudflare Pages, which deploys on its own when main changes.)
 on:
   push:
     branches: [main]
