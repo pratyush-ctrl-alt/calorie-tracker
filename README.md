@@ -4,12 +4,12 @@ A small personal calorie and macro logger for one person, used on a phone.
 
 Most meals arrive as a single line of text that another AI (Gemini, ChatGPT or Claude) writes after you send it a food photo. You paste that line into Plate Log. The app parses it with plain code, stores it in your own Supabase database, and shows today's numbers, the last 7 days and the month against your targets. It is tuned to a nutritionist's plan: a pre-made "Kenko" dinner box most days, plus fixed plan options for the other meals.
 
-**The text parser is plain code with no AI** (`js/parser.js`). The one exception is the optional **photo logging**: you take a photo and Google Gemini estimates the meal. This reverses the original "no AI or API keys anywhere" rule, at the owner's request. The Gemini key is kept only in Netlify's environment variables, never in this repository or on the phone. See "Photo logging" below.
+**The text parser is plain code with no AI** (`js/parser.js`). The one exception is the optional **photo logging**: you take a photo and Google Gemini estimates the meal. This reverses the original "no AI or API keys anywhere" rule, at the owner's request. The Gemini key is kept only in Cloudflare's environment variables, never in this repository or on the phone. See "Photo logging" below.
 
 ## How it works
 
 - **Frontend:** a static site in plain HTML, CSS and JavaScript (ES modules). No framework, no build step, no runtime dependencies.
-- **Hosting:** Netlify, which redeploys automatically whenever `main` changes (`netlify.toml`).
+- **Hosting:** Cloudflare Pages, which redeploys automatically whenever `main` changes. The build command and output folder are set in the Cloudflare dashboard (SETUP.md, Part B); security headers are in `_headers`; the photo function is `functions/api/analyze-photo.js`.
 - **Database:** Supabase (Postgres). `supabase/schema.sql` creates everything; you paste it into Supabase once.
 - **Auth:** a shared secret token. The tables are completely locked; the only way in is a handful of `plate_*` database functions, and each one checks your token first. So the public Supabase key on its own can read and write nothing. The project URL, public key and token are typed into the app's Settings screen and live only in the phone's localStorage. They are never committed.
 - **Never lose an entry:** every write goes to a local pending queue first, then to the database. The screens render instantly from a local cache of the last 120 days and refresh from the database. The chip in the header shows "Saved", "2 waiting to sync" or "Can't reach database, will retry". Writes are upserts by a client-generated id, so a retried request never makes a duplicate row.
@@ -44,12 +44,12 @@ Lunch | Dal, rice, bhindi, curd | 720 kcal | 28g P | 95g C | 22g F | 9g Fib
 
 ## Photo logging (optional)
 
-Log → **Add a photo**. The photo is shrunk on the phone (about 1280 px JPEG, location data removed), sent to a Netlify Function, which asks Gemini for a nutrition estimate. The estimate fills the paste box and the normal preview cards, so **nothing is saved until you tap Save**, and you can edit any number first. "Estimate again" accepts an optional note ("I only ate half").
+Log → **Add a photo**. The photo is shrunk on the phone (about 1280 px JPEG, location data removed), sent to a Cloudflare Pages Function, which asks Gemini for a nutrition estimate. The estimate fills the paste box and the normal preview cards, so **nothing is saved until you tap Save**, and you can edit any number first. "Estimate again" accepts an optional note ("I only ate half").
 
-- **Where the key lives:** only in Netlify environment variables (`GEMINI_API_KEY`). The app and the repository never contain it.
+- **Where the key lives:** only in Cloudflare environment variables (`GEMINI_API_KEY`). The app and the repository never contain it.
 - **Who may use it:** the function checks your app token against your Supabase database before it calls Gemini, so strangers cannot spend your Gemini quota.
 - **Setup:** SETUP.md, Part E. In the app, Settings → Photo logging → Check shows whether it is ready and lists the model IDs your key can use.
-- **Model:** default `gemini-3.1-flash-lite`. Set `GEMINI_MODEL` in Netlify to change it, or give a comma-separated list to fall over to the next model when one hits its quota.
+- **Model:** default `gemini-3.1-flash-lite`. Set `GEMINI_MODEL` in Cloudflare to change it, or give a comma-separated list to fall over to the next model when one hits its quota.
 - **Privacy:** photos are sent to Google to be analysed and are not stored by this app. As I understand Google's terms, content sent through the free tier of the Gemini API may be used to improve Google's products, while paid usage is not. Check Google's current terms if that matters to you.
 - **Accuracy:** it is an estimate from one picture. Portion size and oil are guesses. Treat it as a fast first draft.
 
@@ -92,7 +92,7 @@ Where the brief was ambiguous I picked the simplest option. Say if you want any 
 - **Token gate through database functions, not logins.** No sign-in screen and no command-line deployment: you paste one SQL file. The trade-off is that the token is one shared password; it is a long random string only you know, kept on your phone. The public key alone cannot read or write anything (this is tested).
 - **No supabase-js library.** The app calls the database with plain `fetch`, so there are still no runtime dependencies.
 - **The public key is in Settings, not in the repo.** It is designed to be public, but it stays out of the code anyway. Never paste the `service_role` / secret key anywhere in the app.
-- **Netlify instead of GitHub Pages.** `netlify.toml` tells Netlify what to publish. The old GitHub Pages workflow is gone; `.github/workflows/test.yml` only runs the tests.
+- **Cloudflare Pages (previously Netlify, before that GitHub Pages).** Cloudflare runs the photo function, which GitHub Pages cannot. The function's logic is in `server/analyze-photo.mjs`, kept free of Cloudflare specifics so the tests run it with plain Node; `functions/api/analyze-photo.js` is a two-line wrapper that passes Cloudflare's variables in. `.github/workflows/test.yml` only runs the tests.
 - **Work goes straight to `main`** (at your request). A pull request is optional for a one-person project.
 - **Wording:** the sync chip now says "Can't reach database, will retry" and "Database problem, see Settings" (it said "Sheet" before).
 - **Free plan pause rule.** Supabase pauses free projects after about a week with no activity. Entries wait safely on the phone while paused (they sync after you restore the project). Opening the app at least weekly avoids the pause.
@@ -115,8 +115,9 @@ Where the brief was ambiguous I picked the simplest option. Say if you want any 
 
 - **Preview first, never auto-save.** AI estimates are sometimes wrong, so the result goes through the same editable preview cards as a pasted line. Saving is one tap.
 - **Entries are stored as "From text"** (source `line`), so no database change was needed for photos.
-- **Token check through Supabase.** The function calls `plate_ping` with your token, using `SUPABASE_URL` and `SUPABASE_ANON_KEY` from Netlify. It never trusts a URL sent by the phone.
-- **Time budget.** Netlify functions stop after about 10 seconds by default, so each Gemini attempt is capped and the whole call stays under about 9 seconds. If a model is slow or out of quota, the next model in `GEMINI_MODEL` is tried.
+- **Token check through Supabase.** The function calls `plate_ping` with your token, using `SUPABASE_URL` and `SUPABASE_ANON_KEY` from Cloudflare. It never trusts a URL sent by the phone.
+- **Time budget.** Cloudflare does not count time spent waiting for Gemini, but the phone gives up after 28 seconds, so each Gemini attempt is capped at 15 seconds and the whole call at about 20. If a model is slow or out of quota, the next model in `GEMINI_MODEL` is tried.
+- **CPU limit.** Cloudflare's free plan allows about 10 ms of actual computing per request. A phone-shrunk photo (about 1280 px) is well inside that; a photo near the 4.5 MB upload cap could exceed it and fail.
 - **A separate model from other apps.** Gemini limits are listed per model, so using a model your other apps do not use leaves their allowance alone. A separate Google project (separate key) would separate them completely.
 - **Not tested against the real Gemini service**, because that needs your key. The function is tested against a fake Google and the real database logic. Use Settings, Photo logging, Check to confirm your setup.
 
