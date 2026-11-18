@@ -1,5 +1,5 @@
-// Estimates the nutrition of a food photo with the Gemini API. Runs as a Cloudflare Pages
-// Function: functions/api/analyze-photo.js is a two-line wrapper that calls the handler below.
+// Estimates the nutrition of a food photo with the Gemini API. Runs inside the Cloudflare Worker:
+// worker.js sends POST /api/analyze-photo here.
 //
 //   POST /api/analyze-photo   { token, image (base64 jpeg/png/webp), mimeType, note?, hour? }
 //   POST /api/analyze-photo   { token, action: "status" }      -> checks the setup, lists model IDs
@@ -8,7 +8,7 @@
 // Every request must carry the app's token, which is checked against your Supabase database, so
 // strangers cannot spend your Gemini quota.
 //
-// Environment variables (Cloudflare: Workers & Pages -> your project -> Settings -> Variables and Secrets):
+// Environment variables (Cloudflare: Workers & Pages -> calorie-tracker -> Settings -> Variables and Secrets):
 //   GEMINI_API_KEY      required   your Gemini API key
 //   SUPABASE_URL        required   the same project URL you type into the app
 //   SUPABASE_ANON_KEY   required   the same public key you type into the app
@@ -22,7 +22,7 @@ const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
 const BUDGET_MS = 20000;                       // the phone gives up after 28 s (js/photo.js)
 const ATTEMPT_MS = 15000;                      // longest single Gemini call
 
-// Cloudflare hands the variables to the handler (context.env). Under Node (the tests) they come
+// Cloudflare hands the variables to the handler (env, from worker.js). Under Node (the tests) they come
 // from process.env instead. `process` does not exist in Cloudflare by default, hence the guard.
 let vars = {};
 const env = (k) => vars?.[k] ?? (typeof process !== 'undefined' ? process.env?.[k] : undefined);

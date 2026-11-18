@@ -9,7 +9,7 @@ Most meals arrive as a single line of text that another AI (Gemini, ChatGPT or C
 ## How it works
 
 - **Frontend:** a static site in plain HTML, CSS and JavaScript (ES modules). No framework, no build step, no runtime dependencies.
-- **Hosting:** Cloudflare Pages, which redeploys automatically whenever `main` changes. The build command and output folder are set in the Cloudflare dashboard (SETUP.md, Part B); security headers are in `_headers`; the photo function is `functions/api/analyze-photo.js`.
+- **Hosting:** a Cloudflare Worker with static assets, which redeploys automatically whenever `main` changes. The build command (copy the site into `dist/`) is set in the Cloudflare dashboard (SETUP.md, Part B); `wrangler.jsonc` tells Cloudflare to serve `dist/` and run `worker.js`; security headers are in `_headers`.
 - **Database:** Supabase (Postgres). `supabase/schema.sql` creates everything; you paste it into Supabase once.
 - **Auth:** a shared secret token. The tables are completely locked; the only way in is a handful of `plate_*` database functions, and each one checks your token first. So the public Supabase key on its own can read and write nothing. The project URL, public key and token are typed into the app's Settings screen and live only in the phone's localStorage. They are never committed.
 - **Never lose an entry:** every write goes to a local pending queue first, then to the database. The screens render instantly from a local cache of the last 120 days and refresh from the database. The chip in the header shows "Saved", "2 waiting to sync" or "Can't reach database, will retry". Writes are upserts by a client-generated id, so a retried request never makes a duplicate row.
@@ -44,7 +44,7 @@ Lunch | Dal, rice, bhindi, curd | 720 kcal | 28g P | 95g C | 22g F | 9g Fib
 
 ## Photo logging (optional)
 
-Log → **Add a photo**. The photo is shrunk on the phone (about 1280 px JPEG, location data removed), sent to a Cloudflare Pages Function, which asks Gemini for a nutrition estimate. The estimate fills the paste box and the normal preview cards, so **nothing is saved until you tap Save**, and you can edit any number first. "Estimate again" accepts an optional note ("I only ate half").
+Log → **Add a photo**. The photo is shrunk on the phone (about 1280 px JPEG, location data removed), sent to the Cloudflare Worker, which asks Gemini for a nutrition estimate. The estimate fills the paste box and the normal preview cards, so **nothing is saved until you tap Save**, and you can edit any number first. "Estimate again" accepts an optional note ("I only ate half").
 
 - **Where the key lives:** only in Cloudflare environment variables (`GEMINI_API_KEY`). The app and the repository never contain it.
 - **Who may use it:** the function checks your app token against your Supabase database before it calls Gemini, so strangers cannot spend your Gemini quota.
@@ -92,7 +92,7 @@ Where the brief was ambiguous I picked the simplest option. Say if you want any 
 - **Token gate through database functions, not logins.** No sign-in screen and no command-line deployment: you paste one SQL file. The trade-off is that the token is one shared password; it is a long random string only you know, kept on your phone. The public key alone cannot read or write anything (this is tested).
 - **No supabase-js library.** The app calls the database with plain `fetch`, so there are still no runtime dependencies.
 - **The public key is in Settings, not in the repo.** It is designed to be public, but it stays out of the code anyway. Never paste the `service_role` / secret key anywhere in the app.
-- **Cloudflare Pages (previously Netlify, before that GitHub Pages).** Cloudflare runs the photo function, which GitHub Pages cannot. The function's logic is in `server/analyze-photo.mjs`, kept free of Cloudflare specifics so the tests run it with plain Node; `functions/api/analyze-photo.js` is a two-line wrapper that passes Cloudflare's variables in. `.github/workflows/test.yml` only runs the tests.
+- **Cloudflare Worker with static assets (previously Netlify, before that GitHub Pages).** Cloudflare runs the photo function, which GitHub Pages cannot. Cloudflare now creates Workers rather than Pages projects from Git, so the app is set up as one: the static files are served straight from `dist/`, and only `/api/analyze-photo` reaches `worker.js`. The function's logic is in `server/analyze-photo.mjs`, kept free of Cloudflare specifics so the tests run it with plain Node. `.github/workflows/test.yml` only runs the tests.
 - **Work goes straight to `main`** (at your request). A pull request is optional for a one-person project.
 - **Wording:** the sync chip now says "Can't reach database, will retry" and "Database problem, see Settings" (it said "Sheet" before).
 - **Free plan pause rule.** Supabase pauses free projects after about a week with no activity. Entries wait safely on the phone while paused (they sync after you restore the project). Opening the app at least weekly avoids the pause.
