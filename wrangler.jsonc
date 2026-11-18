@@ -9,6 +9,9 @@
     "directory": "./dist",
     "binding": "ASSETS"
   },
+  // Serve the app at https://calorie-tracker.<account>.workers.dev, and keep that address
+  // switched on after every deploy.
+  "workers_dev": true,
   // Keep variables typed into the dashboard (GEMINI_MODEL etc.) instead of wiping them on deploy.
   "keep_vars": true
 }
