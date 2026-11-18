@@ -1,6 +1,6 @@
 # Setup (your manual steps)
 
-You need three free accounts' worth of clicking, about 30 minutes in total: **Supabase** (the database), **Cloudflare Pages** (the website) and your phone. You already have GitHub.
+You need three free accounts' worth of clicking, about 30 minutes in total: **Supabase** (the database), **Cloudflare** (the website) and your phone. You already have GitHub.
 Nothing here needs a command line. The app already works in Demo mode with a sample week, so you can look at it first.
 
 **Golden rule for secrets:** you will have a *project URL*, a *public key* and a *token*. They go into the app's Settings screen on your phone, and nowhere else. Don't paste them into GitHub, into the code, or into a chat. You never need to give any of them to anyone for deployment. The one key you must **never** copy anywhere is Supabase's **service_role / secret** key.
@@ -36,22 +36,22 @@ To change the token later, run this in the SQL Editor: `update plate_secret set 
 
 ---
 
-## Part B. Cloudflare Pages (the website)
+## Part B. Cloudflare (the website)
 
-### Why Cloudflare Pages
-Free, redeploys automatically when `main` changes, and runs the small server function that photo logging needs. (The app used to be on Netlify and before that GitHub Pages.)
+### Why Cloudflare
+Free, redeploys automatically when `main` changes, and runs the small server function that photo logging needs. The app is a Cloudflare **Worker with static assets**: the website files are served as they are, and `worker.js` only handles photo logging. (The app used to be on Netlify and before that GitHub Pages.)
 
 ### B1. Deploy
 1. Go to <https://dash.cloudflare.com> and sign up or log in.
-2. **Workers & Pages** → **Create** → **Pages** tab → **Connect to Git** (it may say "Import an existing Git repository"). Allow Cloudflare to access your GitHub (you can limit it to just the `calorie-tracker` repository).
+2. **Workers & Pages** → **Create** → **Import a repository** (Connect to Git). Allow Cloudflare to access your GitHub (you can limit it to just the `calorie-tracker` repository).
 3. Choose the repository **pratyush-ctrl-alt/calorie-tracker**.
 4. Settings:
-   - **Production branch:** `main`
-   - **Framework preset:** None
+   - **Project name:** `calorie-tracker` (it must match `"name"` in `wrangler.jsonc`)
    - **Build command:** `mkdir -p dist && cp -r index.html manifest.json _headers css js icons dist/`
-   - **Build output directory:** `dist`
-   - Leave **Root directory** empty. Cloudflare finds the `functions/` folder (photo logging) on its own.
-5. Click **Save and Deploy**. After about a minute you get an address like `https://calorie-tracker-xyz.pages.dev`. The project name you choose in step 4 becomes the first part of the address.
+   - **Deploy command:** `npx wrangler deploy` (the default)
+   - Leave **Path / Root directory** as `/`.
+   - Production branch: `main` (under the advanced or build settings).
+5. Click **Deploy**. After about a minute you get an address like `https://calorie-tracker.<your-name>.workers.dev`.
 
 From now on, every change on `main` is published by Cloudflare automatically.
 
@@ -59,7 +59,7 @@ From now on, every change on `main` is published by Cloudflare automatically.
 
 ## Part C. Connect your phone
 
-1. Open your Cloudflare Pages address (`…pages.dev`) on your phone's browser (Safari on iPhone, Chrome on Android).
+1. Open your Cloudflare address (`…workers.dev`) on your phone's browser (Safari on iPhone, Chrome on Android).
 2. Tap **Settings** at the bottom. Fill in:
    - **Project URL**: from A4
    - **Public key**: from A4
@@ -100,7 +100,7 @@ This lets you photograph a meal and get an estimate. It needs a Gemini API key f
 2. Don't paste the key into chat, GitHub or the app.
 
 ### E2. Add the variables in Cloudflare
-Cloudflare → **Workers & Pages** → your project → **Settings** → **Variables and Secrets** → **Add**. Add each one for **Production** (and also for **Preview** if you use preview deploys). Choose type **Secret** for the key; the others can be plain text:
+Cloudflare → **Workers & Pages** → **calorie-tracker** → **Settings** → **Variables and Secrets** → **Add**. Choosing type **Secret** for all of them is simplest (secrets are never shown again and are never touched by a deploy):
 
 | Variable | Value | Notes |
 |---|---|---|
@@ -109,8 +109,8 @@ Cloudflare → **Workers & Pages** → your project → **Settings** → **Varia
 | `SUPABASE_ANON_KEY` | the same public key you type into the app | the anon / publishable one, never the secret key |
 | `GEMINI_MODEL` (optional) | a model ID, or several separated by commas | default `gemini-3.1-flash-lite`. Example: `gemini-3.1-flash-lite,gemini-3-flash` tries the second if the first is out of quota |
 
-### E3. Redeploy
-Variables only reach the site on a new deploy: your project → **Deployments** → on the latest production deployment, **⋯ → Retry deployment**. (Any new change on `main` also does it.)
+### E3. Save
+Click **Deploy** / **Save** after adding the variables. For a Worker this takes effect straight away, with no rebuild needed. Because the variables are secrets (or because `wrangler.jsonc` has `"keep_vars": true`), later deploys from `main` keep them.
 
 ### E4. Check it
 In the app: **Settings → Photo logging → Check photo logging**. It should say "Photo logging is ready". If it says Google does not list your model, it also shows the model IDs your key can use: copy one into `GEMINI_MODEL` and redeploy.
@@ -126,7 +126,7 @@ In the app: **Settings → Photo logging → Check photo logging**. It should sa
 | "Google rejected the Gemini API key" | Re-copy the key into `GEMINI_API_KEY`, redeploy. |
 | "…limit … has been reached" | You used that model's daily or per-minute allowance. Wait, or add a second model to `GEMINI_MODEL`. |
 | "Gemini does not know the model …" | Use Check photo logging to see valid IDs, then fix `GEMINI_MODEL`. |
-| "Photo logging is not available on this site yet" | The site is not running on Cloudflare Pages with the `functions/` folder (for example you opened a local copy, or the deploy's **Functions** tab is empty). |
+| "Photo logging is not available on this site yet" | The site is not running on the Cloudflare Worker (for example you opened a local copy, or the latest deploy failed: check **Deployments**). |
 
 **Privacy:** the photo goes to Google to be analysed and is not stored by this app. As I understand Google's terms, the free tier may use submitted content to improve Google's products. Check their current terms.
 
@@ -143,6 +143,6 @@ In the app: **Settings → Photo logging → Check photo logging**. It should sa
 ## Moving over from Netlify
 If the app is already running on Netlify:
 1. Do Part B (Cloudflare deploy) and Part E2–E3 (the same four variables, now in Cloudflare).
-2. On the phone, open the new `…pages.dev` address, enter the three Settings values again (Part C) and add the new home-screen icon. Delete the old icon. Your entries are safe: they live in Supabase, not on the phone. Any entries on the old address that never synced should be synced there first (Settings → Sync now).
+2. On the phone, open the new `…workers.dev` address, enter the three Settings values again (Part C) and add the new home-screen icon. Delete the old icon. Your entries are safe: they live in Supabase, not on the phone. Any entries on the old address that never synced should be synced there first (Settings → Sync now).
 3. Check photo logging (E4) on the new address.
 4. When everything works, delete the Netlify site (Netlify → your site → Project configuration → Delete project) so two copies are not running.

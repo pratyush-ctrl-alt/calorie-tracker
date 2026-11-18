@@ -1,0 +1,14 @@
+// Cloudflare Worker settings. Read by `npx wrangler deploy`, which Cloudflare runs after the build.
+{
+  // Must match the Worker's name in the Cloudflare dashboard.
+  "name": "calorie-tracker",
+  "main": "worker.js",
+  "compatibility_date": "2025-11-01",
+  // The website files. The dashboard's build command copies them into dist/.
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS"
+  },
+  // Keep variables typed into the dashboard (GEMINI_MODEL etc.) instead of wiping them on deploy.
+  "keep_vars": true
+}

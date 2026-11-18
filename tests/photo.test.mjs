@@ -1,7 +1,7 @@
 import test, { beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import handler, { normalizeResult, buildPrompt, guessSlot } from '../server/analyze-photo.mjs';
-import { onRequestPost } from '../functions/api/analyze-photo.js';
+import worker from '../worker.js';
 import { entriesToLines } from '../js/photo.js';
 
 const realFetch = globalThis.fetch;
@@ -75,19 +75,27 @@ test('the token is verified against Supabase before anything goes to Gemini', as
   assert.equal(ping.init.headers.apikey, 'anon');
 });
 
-test('the Cloudflare wrapper reads the variables from context.env, not process.env', async () => {
+test('the Cloudflare Worker routes /api/analyze-photo and reads the variables from env, not process.env', async () => {
   delete process.env.GEMINI_API_KEY;
   delete process.env.SUPABASE_URL;
   delete process.env.SUPABASE_ANON_KEY;
   geminiPlan = [ok(GOOD)];
   const request = new Request('https://x.pages.dev/api/analyze-photo', { method: 'POST', body: JSON.stringify({ token: 'tok', image: IMG, mimeType: 'image/jpeg', hour: 13 }) });
   const env = { GEMINI_API_KEY: 'cf-key', SUPABASE_URL: 'https://cf.supabase.co/', SUPABASE_ANON_KEY: 'cf-anon' };
-  const res = await onRequestPost({ request, env });
+  const res = await worker.fetch(request, env);
   assert.equal(res.status, 200);
   assert.equal((await res.json()).ok, true);
   assert.equal(calls[0].url, 'https://cf.supabase.co/rest/v1/rpc/plate_ping');
   assert.equal(calls[0].init.headers.apikey, 'cf-anon');
   assert.equal(calls.find((c) => c.url.includes(':generateContent')).init.headers['x-goog-api-key'], 'cf-key');
+});
+
+test('the Cloudflare Worker hands every other path to the static files', async () => {
+  const seen = [];
+  const env = { ASSETS: { fetch: async (r) => { seen.push(new URL(r.url).pathname); return new Response('nope', { status: 404 }); } } };
+  const res = await worker.fetch(new Request('https://x.workers.dev/api/other'), env);
+  assert.equal(res.status, 404);
+  assert.deepEqual(seen, ['/api/other']);
 });
 
 test('missing setup is explained in plain English and names the missing variables', async () => {

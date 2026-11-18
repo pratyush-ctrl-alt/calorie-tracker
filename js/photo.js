@@ -1,5 +1,5 @@
-// Photo logging, browser side. The Gemini call itself happens in a Cloudflare Pages Function
-// (functions/api/analyze-photo.js -> server/analyze-photo.mjs) so the Gemini key never reaches the phone.
+// Photo logging, browser side. The Gemini call itself happens in the Cloudflare Worker
+// (worker.js -> server/analyze-photo.mjs) so the Gemini key never reaches the phone.
 
 /** Entries from the function -> log lines the normal parser understands. Pure, so it is tested. */
 export function entriesToLines(entries) {
