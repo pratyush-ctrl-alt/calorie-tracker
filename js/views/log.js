@@ -3,7 +3,7 @@ import { parseLog } from '../parser.js';
 import { GEMINI_PROMPT, EXAMPLE_LINE } from '../prompt.js';
 import { buildEntry, validateEntry, numOrNull, NUM_FIELDS } from '../entries.js';
 import { copyText, field, largeTitle, nav, numInput, openEntrySheet, openQuickLog, slotSelect, switchRow, toast } from '../components.js';
-import { analyzePhoto, compressImage, entriesToLines } from '../photo.js';
+import { analyzePhoto, analyzeText, compressImage, entriesToLines, speechRecognition } from '../photo.js';
 import * as store from '../store.js';
 
 const NUM_LABELS = { kcal: 'kcal', protein_g: 'Protein', carbs_g: 'Carbs', fat_g: 'Fat', fibre_g: 'Fibre' };
@@ -106,6 +106,7 @@ export function createLogView() {
     ta.value = '';
     clearWrap.hidden = true;
     resetPhoto();
+    resetDesc();
     edits.clear();
     reparse();
     toast(`Saved ${good.length} ${good.length === 1 ? 'entry' : 'entries'}${skipped ? `, ${skipped} line${skipped === 1 ? '' : 's'} skipped` : ''}`);
@@ -126,6 +127,15 @@ export function createLogView() {
   let photoText = ''; // the lines the last estimate put in the box, so "Estimate again" replaces them
 
   const say = (text, cls = 'hint') => { photoMsg.className = cls; photoMsg.textContent = text; };
+
+  /** Puts AI lines into the paste box, replacing the lines the same source added last time. Returns them. */
+  function putLines(previous, lines) {
+    const rest = previous ? ta.value.replace(previous, '').trim() : ta.value.trim();
+    ta.value = rest ? `${rest}\n${lines}` : lines;
+    clearWrap.hidden = false;
+    reparse();
+    return lines;
+  }
 
   function resetPhoto() {
     photo = null;
@@ -170,12 +180,7 @@ export function createLogView() {
       if (!r.items.length) {
         say(r.notes || 'No food found in the photo.', 'warn-text');
       } else {
-        const lines = entriesToLines(r.items);
-        const rest = photoText ? ta.value.replace(photoText, '').trim() : ta.value.trim();
-        photoText = lines;
-        ta.value = rest ? `${rest}\n${lines}` : lines;
-        clearWrap.hidden = false;
-        reparse();
+        photoText = putLines(photoText, entriesToLines(r.items));
         say(`Estimated by AI${r.confidence === 'low' ? ' (not very sure)' : ''}. Check the numbers, then save.${r.notes ? ` ${r.notes}` : ''}`);
       }
     } catch (err) {
@@ -184,6 +189,91 @@ export function createLogView() {
       busy = false;
       photoBtn.disabled = false;
       reBtn.hidden = false;
+    }
+  }
+
+  // ---- describe a meal (typed or spoken) -> AI estimate -> the same preview cards -----------------------
+  const DESC_HINT = 'Type or speak what you ate, with amounts if you know them, for example "50-50 black coffee and milk, very little sugar" or "exactly 10 g salted roasted peanuts".';
+  const descBox = h('textarea', {
+    rows: 3, placeholder: 'e.g. coffee with milk, and 2 idlis with sambar', 'aria-label': 'Describe what you ate', maxlength: 1000,
+    oninput: () => { descBtn.disabled = descBusy || !descBox.value.trim(); },
+  });
+  const descMsg = h('p', { class: 'hint', role: 'status' }, DESC_HINT);
+  const Speech = speechRecognition();
+  // Without the browser's speech input, the keyboard's own microphone key still dictates into the box.
+  const micHint = h('p', { class: 'hint small' }, Speech ? 'Speak uses your browser\u2019s speech-to-text, which sends the audio to Google or Apple to turn it into words.' : 'To speak, tap the microphone key on your phone\u2019s keyboard.');
+  const descBtn = h('button', { class: 'btn primary', type: 'button', disabled: true, onclick: () => runDescribe() }, 'Estimate');
+  const micBtn = h('button', { class: 'btn', type: 'button', hidden: !Speech, 'aria-pressed': 'false', onclick: () => toggleMic() }, 'Speak');
+  let descBusy = false;
+  let descText = ''; // the lines the last text estimate put in the box, so a new estimate replaces them
+  let rec = null;
+
+  const sayDesc = (text, cls = 'hint') => { descMsg.className = cls; descMsg.textContent = text; };
+
+  function resetDesc() {
+    stopMic();
+    descBox.value = '';
+    descText = '';
+    descBtn.disabled = true;
+    sayDesc(DESC_HINT);
+  }
+
+  function stopMic() {
+    if (rec) { try { rec.stop(); } catch { /* already stopped */ } }
+  }
+
+  function toggleMic() {
+    if (rec) { stopMic(); return; }
+    rec = new Speech();
+    rec.lang = 'en-IN';
+    rec.interimResults = true;
+    rec.continuous = false;
+    const before = descBox.value.trim();
+    rec.onresult = (e) => {
+      const heard = Array.from(e.results).map((r) => r[0].transcript).join(' ').trim();
+      descBox.value = before ? `${before} ${heard}` : heard;
+      descBtn.disabled = descBusy || !descBox.value.trim();
+    };
+    rec.onerror = (e) => {
+      sayDesc(e.error === 'not-allowed' || e.error === 'service-not-allowed'
+        ? 'Microphone access was refused. Allow it in your browser settings, or use the microphone key on your keyboard.'
+        : e.error === 'no-speech' ? 'Did not hear anything. Tap Speak and try again.' : `Speech input stopped (${e.error}). You can type instead.`, 'warn-text');
+    };
+    rec.onend = () => { rec = null; micBtn.textContent = 'Speak'; micBtn.setAttribute('aria-pressed', 'false'); micBtn.classList.remove('primary'); };
+    try {
+      rec.start();
+      micBtn.textContent = 'Stop';
+      micBtn.setAttribute('aria-pressed', 'true');
+      micBtn.classList.add('primary');
+      sayDesc('Listening\u2026 say what you ate.');
+    } catch (err) {
+      rec = null;
+      sayDesc(`Could not start the microphone: ${err.message}`, 'warn-text');
+    }
+  }
+
+  async function runDescribe() {
+    const text = descBox.value.trim();
+    if (!text || descBusy) return;
+    stopMic();
+    const conn = store.getConn();
+    if (store.isDemo() || !conn.token) { sayDesc('Connect your database first (Settings). Text estimates use the same token.', 'warn-text'); return; }
+    descBusy = true;
+    descBtn.disabled = true;
+    sayDesc('Estimating\u2026');
+    try {
+      const r = await analyzeText(conn, text);
+      if (!r.items.length) {
+        sayDesc(r.notes || 'No food found in the description.', 'warn-text');
+      } else {
+        descText = putLines(descText, entriesToLines(r.items));
+        sayDesc(`Estimated by AI${r.confidence === 'low' ? ' (not very sure)' : ''}. Check the numbers below, then save. Edit the description and tap Estimate to redo it.${r.notes ? ` ${r.notes}` : ''}`);
+      }
+    } catch (err) {
+      sayDesc(err.message, 'warn-text');
+    } finally {
+      descBusy = false;
+      descBtn.disabled = !descBox.value.trim();
     }
   }
 
@@ -211,6 +301,9 @@ export function createLogView() {
 
   el.append(
     largeTitle('Log', 'Add what you ate'),
+    h('div', { class: 'card' },
+      h('h2', { class: 'card-title' }, 'Describe a meal'),
+      descBox, h('div', { class: 'row-btns' }, micBtn, descBtn), descMsg, micHint),
     h('div', { class: 'card' }, photoBtn, photoInput, thumb, photoNote, h('div', { class: 'row-btns' }, reBtn), photoMsg),
     h('div', { class: 'card' },
       ta,

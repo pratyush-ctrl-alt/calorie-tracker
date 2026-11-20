@@ -39,7 +39,7 @@ To change the token later, run this in the SQL Editor: `update plate_secret set 
 ## Part B. Cloudflare (the website)
 
 ### Why Cloudflare
-Free, redeploys automatically when `main` changes, and runs the small server function that photo logging needs. The app is a Cloudflare **Worker with static assets**: the website files are served as they are, and `worker.js` only handles photo logging. (The app used to be on Netlify and before that GitHub Pages.)
+Free, redeploys automatically when `main` changes, and runs the small server function that AI estimates need. The app is a Cloudflare **Worker with static assets**: the website files are served as they are, and `worker.js` only handles photo logging. (The app used to be on Netlify and before that GitHub Pages.)
 
 ### B1. Deploy
 1. Go to <https://dash.cloudflare.com> and sign up or log in.
@@ -91,9 +91,9 @@ Some app updates need a small database change (for example favourites in My Item
 
 ---
 
-## Part E. Photo logging with Gemini (optional)
+## Part E. AI estimates with Gemini: photo or description (optional)
 
-This lets you photograph a meal and get an estimate. It needs a Gemini API key from Google, kept **only in Cloudflare**.
+This lets you photograph a meal, or type or speak what you ate, and get an estimate. It needs a Gemini API key from Google, kept **only in Cloudflare**.
 
 ### E1. Get a key
 1. Open <https://aistudio.google.com> → **Get API key**. You can reuse the key from your other app, but a **separate key (ideally in a separate Google project)** is better: then this app's usage and limits never touch your other app, and you can revoke one without breaking the other.
@@ -113,10 +113,13 @@ Cloudflare → **Workers & Pages** → **calorie-tracker** → **Settings** → 
 Click **Deploy** / **Save** after adding the variables. For a Worker this takes effect straight away, with no rebuild needed. Because the variables are secrets (or because `wrangler.jsonc` has `"keep_vars": true`), later deploys from `main` keep them.
 
 ### E4. Check it
-In the app: **Settings → Photo logging → Check photo logging**. It should say "Photo logging is ready". If it says Google does not list your model, it also shows the model IDs your key can use: copy one into `GEMINI_MODEL` and redeploy.
+In the app: **Settings → AI estimates → Check AI estimates**. It should say "AI estimates (photo and text) are ready". If it says Google does not list your model, it also shows the model IDs your key can use: copy one into `GEMINI_MODEL` and redeploy.
 
 ### E5. Use it
-**Log → Add a photo**. Check the numbers in the preview and tap Save.
+- **Log → Describe a meal**: type or tap **Speak**, say what you ate (amounts help: "exactly 10 g peanuts"), tap **Estimate**.
+- **Log → Add a photo**: take or choose a photo.
+
+Either way, check the numbers in the preview cards and tap Save.
 
 ### If something goes wrong
 | It says | What to do |
@@ -125,8 +128,8 @@ In the app: **Settings → Photo logging → Check photo logging**. It should sa
 | "Wrong or missing token" | The token in the app does not match your database. See Part C. |
 | "Google rejected the Gemini API key" | Re-copy the key into `GEMINI_API_KEY`, redeploy. |
 | "…limit … has been reached" | You used that model's daily or per-minute allowance. Wait, or add a second model to `GEMINI_MODEL`. |
-| "Gemini does not know the model …" | Use Check photo logging to see valid IDs, then fix `GEMINI_MODEL`. |
-| "Photo logging is not available on this site yet" | The site is not running on the Cloudflare Worker (for example you opened a local copy, or the latest deploy failed: check **Deployments**). |
+| "Gemini does not know the model …" | Use Check AI estimates to see valid IDs, then fix `GEMINI_MODEL`. |
+| "AI estimates are not available on this site yet" | The site is not running on the Cloudflare Worker (for example you opened a local copy, or the latest deploy failed: check **Deployments**). |
 
 **Privacy:** the photo goes to Google to be analysed and is not stored by this app. As I understand Google's terms, the free tier may use submitted content to improve Google's products. Check their current terms.
 
@@ -144,5 +147,5 @@ In the app: **Settings → Photo logging → Check photo logging**. It should sa
 If the app is already running on Netlify:
 1. Do Part B (Cloudflare deploy) and Part E2–E3 (the same four variables, now in Cloudflare).
 2. On the phone, open the new `…workers.dev` address, enter the three Settings values again (Part C) and add the new home-screen icon. Delete the old icon. Your entries are safe: they live in Supabase, not on the phone. Any entries on the old address that never synced should be synced there first (Settings → Sync now).
-3. Check photo logging (E4) on the new address.
+3. Check AI estimates (E4) on the new address.
 4. When everything works, delete the Netlify site (Netlify → your site → Project configuration → Delete project) so two copies are not running.

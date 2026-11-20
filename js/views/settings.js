@@ -127,11 +127,11 @@ export function createSettingsView() {
     ].filter(Boolean));
   }
 
-  // ---- photo logging check ---------------------------------------------------------------------------
+  // ---- AI estimates (photo and text) check ---------------------------------------------------------------------------
   const aiMsg = h('div', { class: 'sync-box', role: 'status' });
   async function checkAi() {
     const conn = store.getConn();
-    if (store.isDemo() || !conn.token) { aiMsg.replaceChildren(h('p', { class: 'warn-text' }, 'Connect your database first. Photo logging uses the same token.')); return; }
+    if (store.isDemo() || !conn.token) { aiMsg.replaceChildren(h('p', { class: 'warn-text' }, 'Connect your database first. AI estimates use the same token.')); return; }
     aiMsg.replaceChildren(h('p', { class: 'hint' }, 'Checking\u2026'));
     try {
       const r = await photoStatus(conn);
@@ -139,7 +139,7 @@ export function createSettingsView() {
       aiMsg.replaceChildren(...[
         missing.length
           ? h('p', { class: 'warn-text' }, `The key works, but Google does not list: ${missing.map((m) => m.id).join(', ')}. Set GEMINI_MODEL in Cloudflare to one of the IDs below.`)
-          : h('p', { class: 'ok-text' }, `Photo logging is ready. Model: ${r.models.map((m) => m.id).join(', ')}`),
+          : h('p', { class: 'ok-text' }, `AI estimates (photo and text) are ready. Model: ${r.models.map((m) => m.id).join(', ')}`),
         h('p', { class: 'hint' }, `Flash models your key can use: ${r.availableFlashModels.join(', ') || 'none found'}`),
       ].filter(Boolean));
     } catch (e) {
@@ -147,9 +147,9 @@ export function createSettingsView() {
     }
   }
   const aiCard = h('div', { class: 'card' },
-    h('h2', { class: 'card-title' }, 'Photo logging'),
-    h('p', { class: 'hint' }, 'Estimates a meal from a photo using Google Gemini. The Gemini key is stored in Cloudflare, not on this phone. See SETUP.md, Part E.'),
-    h('button', { class: 'btn', type: 'button', onclick: checkAi }, 'Check photo logging'), aiMsg);
+    h('h2', { class: 'card-title' }, 'AI estimates'),
+    h('p', { class: 'hint' }, 'Estimates a meal from a photo or a description using Google Gemini. The Gemini key is stored in Cloudflare, not on this phone. See SETUP.md, Part E.'),
+    h('button', { class: 'btn', type: 'button', onclick: checkAi }, 'Check AI estimates'), aiMsg);
 
   // ---- targets -------------------------------------------------------------------------------------
   const inputs = {};

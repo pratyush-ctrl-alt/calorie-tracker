@@ -1,4 +1,4 @@
-// Photo logging, browser side. The Gemini call itself happens in the Cloudflare Worker
+// Photo and text logging, browser side. The Gemini call itself happens in the Cloudflare Worker
 // (worker.js -> server/analyze-photo.mjs) so the Gemini key never reaches the phone.
 
 /** Entries from the function -> log lines the normal parser understands. Pure, so it is tested. */
@@ -60,13 +60,23 @@ async function call(payload, timeoutMs) {
   try { json = await res.json(); } catch { /* not JSON */ }
   if (res.ok && json?.ok) return json;
   if (res.status === 404 || !json) {
-    throw new Error('Photo logging is not available on this site yet. It needs the Cloudflare setup described in SETUP.md.');
+    throw new Error('AI estimates are not available on this site yet. It needs the Cloudflare setup described in SETUP.md.');
   }
   throw new Error(json.error || `Photo logging failed (${res.status}).`);
 }
 
 export function analyzePhoto(conn, { base64, mime, note }) {
   return call({ token: conn.token, image: base64, mimeType: mime, note, hour: new Date().getHours() + new Date().getMinutes() / 60 }, 28000);
+}
+
+/** A typed or dictated description ("coffee with milk, 10 g peanuts") -> the same kind of estimate. */
+export function analyzeText(conn, text) {
+  return call({ token: conn.token, text, hour: new Date().getHours() + new Date().getMinutes() / 60 }, 28000);
+}
+
+/** The browser's speech-to-text, if it has one (Chrome on Android; Safari on iPhone, but often not from a home-screen app). */
+export function speechRecognition() {
+  return globalThis.SpeechRecognition ?? globalThis.webkitSpeechRecognition ?? null;
 }
 
 export function photoStatus(conn) {
