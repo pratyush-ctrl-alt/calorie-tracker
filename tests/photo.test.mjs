@@ -1,6 +1,6 @@
 import test, { beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
-import handler, { normalizeResult, buildPrompt, buildTextPrompt, guessSlot } from '../server/analyze-photo.mjs';
+import handler, { normalizeResult, buildPrompt, buildTextPrompt, guessSlot, backupModels } from '../server/analyze-photo.mjs';
 import worker from '../worker.js';
 import { entriesToLines } from '../js/photo.js';
 
@@ -124,6 +124,36 @@ test('a quota error on the first model falls over to the next one in GEMINI_MODE
   assert.equal(json.ok, true);
   assert.equal(json.model, 'gemini-3-flash');
   assert.equal(calls.filter((c) => c.url.includes(':generateContent')).length, 2);
+});
+
+test('a busy model (503 "high demand") with no GEMINI_MODEL set falls back to a model the key can use', async () => {
+  geminiPlan = [{ status: 503, body: { error: { message: 'This model is currently experiencing high demand.' } } }, ok(GOOD)];
+  const json = await (await photo()).json();
+  assert.equal(json.ok, true);
+  assert.equal(json.model, 'gemini-3-flash');
+  assert.equal(json.backup, true);
+  assert.deepEqual(json.tried, ['gemini-3.1-flash-lite', 'gemini-3-flash']);
+  assert.ok(calls.some((c) => c.url.includes('/models?')), 'asked Google for the list of models');
+});
+
+test('when the main model and the backups all fail, the message says backups were tried', async () => {
+  geminiPlan = [
+    { status: 503, body: { error: { message: 'high demand' } } },
+    { status: 503, body: { error: { message: 'high demand' } } },
+  ];
+  const res = await photo();
+  const json = await res.json();
+  assert.equal(res.status, 502);
+  assert.equal(json.code, 'busy');
+  assert.match(json.error, /overloaded/);
+  assert.match(json.error, /Backup model gemini-3-flash was also tried/);
+  assert.deepEqual(json.tried, ['gemini-3.1-flash-lite', 'gemini-3-flash']);
+});
+
+test('backupModels: skips tried ones, stable before preview, lite first', () => {
+  assert.deepEqual(
+    backupModels(['gemini-3-flash-preview', 'gemini-3-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-flash-lite', 'gemini-3.5-flash-lite-preview'], ['gemini-3.1-flash-lite']),
+    ['gemini-2.5-flash-lite', 'gemini-3-flash', 'gemini-3.5-flash-lite-preview', 'gemini-3-flash-preview']);
 });
 
 test('quota exhausted on every model says so', async () => {

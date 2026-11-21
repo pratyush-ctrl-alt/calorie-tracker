@@ -15,6 +15,8 @@
 //   SUPABASE_ANON_KEY   required   the same public key you type into the app
 //   GEMINI_MODEL        optional   model ID, or a comma separated list tried in order
 //                                  (default: gemini-3.1-flash-lite)
+//                                  If they all fail (busy, quota, unknown, timeout), up to 2 more
+//                                  flash/lite models that this key can use are tried automatically.
 
 const SLOTS = ['Breakfast', 'Lunch', 'Snack', 'Dinner', 'Workout'];
 const DEFAULT_MODELS = ['gemini-3.1-flash-lite'];
@@ -23,6 +25,7 @@ const MAX_TEXT_CHARS = 1000;                  // a meal description
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
 const BUDGET_MS = 20000;                       // the phone gives up after 28 s (js/photo.js)
 const ATTEMPT_MS = 15000;                      // longest single Gemini call
+const MAX_BACKUPS = 2;                         // extra models tried when the configured ones fail
 
 // Cloudflare hands the variables to the handler (env, from worker.js). Under Node (the tests) they come
 // from process.env instead. `process` does not exist in Cloudflare by default, hence the guard.
@@ -127,6 +130,12 @@ async function gemini(path, key, init, timeoutMs) {
   return { status: res.status, json };
 }
 
+/** Backup candidates from Google's list: not already tried, stable releases before previews, lite first (cheapest, fastest). */
+export function backupModels(ids, tried = []) {
+  const rank = (id) => (/preview|exp/i.test(id) ? 2 : 0) + (/lite/i.test(id) ? 0 : 1);
+  return ids.filter((id) => !tried.includes(id)).map((id, i) => ({ id, i })).sort((a, b) => rank(a.id) - rank(b.id) || a.i - b.i).map((x) => x.id);
+}
+
 async function listModels(key) {
   const { status, json } = await gemini('models?pageSize=200', key, { method: 'GET' }, 6000);
   if (status !== 200) return { error: json?.error?.message ?? `Google answered ${status}` };
@@ -189,28 +198,53 @@ export default async function handler(req, envVars = {}) {
     generationConfig: { responseMimeType: 'application/json', temperature: 0.2, maxOutputTokens: 1000 },
   };
 
+  // Try the configured models in order. If they all fail for a reason another model might not have
+  // (busy, out of quota, unknown model, timeout, unusable answer), ask Google which flash/lite models
+  // this key can use and try up to MAX_BACKUPS of those too, so a busy model is never a dead end.
   const started = Date.now();
-  let lastProblem = null;
-  for (const model of chain) {
+  const queue = [...chain];
+  const tried = [];
+  const problems = [];
+  let discovered = false;
+  while (true) {
+    if (!queue.length && !discovered) {
+      discovered = true;
+      if (BUDGET_MS - (Date.now() - started) > 4000) {
+        try {
+          const found = await listModels(key);
+          if (found.ids) queue.push(...backupModels(found.ids, tried).slice(0, MAX_BACKUPS));
+        } catch { /* no backups then */ }
+      }
+    }
+    const model = queue.shift();
+    if (!model) break;
     const left = BUDGET_MS - (Date.now() - started);
     if (left < 1500) break;
+    tried.push(model);
     let r;
     try {
       r = await gemini(`models/${encodeURIComponent(model)}:generateContent`, key, { method: 'POST', body: JSON.stringify(payload) }, Math.min(left, ATTEMPT_MS));
-    } catch { lastProblem = { code: 'timeout', error: 'Gemini took too long to answer. Try again.' }; continue; }
+    } catch { problems.push({ model, code: 'timeout', error: `Gemini (${model}) took too long to answer.` }); continue; }
 
     if (r.status === 200) {
       const text = (r.json?.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? '').join('');
       const result = normalizeResult(text, hour);
-      if (!result) { lastProblem = { code: 'bad_answer', error: `Gemini did not return a usable answer. Try again${isText ? ', or describe the food differently' : ', or use a clearer photo'}.` }; continue; }
-      return reply(200, { ok: true, model, ...result });
+      if (!result) { problems.push({ model, code: 'bad_answer', error: `Gemini did not return a usable answer. Try again${isText ? ', or describe the food differently' : ', or use a clearer photo'}.` }); continue; }
+      return reply(200, { ok: true, model, backup: !chain.includes(model), tried, ...result });
     }
     const msg = r.json?.error?.message ?? `Google answered ${r.status}`;
-    if (r.status === 429) lastProblem = { code: 'quota', error: `The daily or per-minute Gemini limit for ${model} has been reached. Try again later.` };
-    else if (r.status === 404) lastProblem = { code: 'model_not_found', error: `Gemini does not know the model "${model}". Open Settings, Photo logging, Check, to see the valid IDs, then set GEMINI_MODEL in Cloudflare.` };
-    else if (r.status === 400 && /api key/i.test(msg)) return fail(502, 'Google rejected the Gemini API key. Check GEMINI_API_KEY in Cloudflare.', 'bad_gemini_key');
-    else if (r.status === 403) return fail(502, 'Google refused the request: this API key may not be allowed to use Gemini. Check the key in Google AI Studio.', 'gemini_forbidden');
-    else lastProblem = { code: 'gemini_error', error: `Gemini error: ${msg}` };
+    if (r.status === 400 && /api key/i.test(msg)) return fail(502, 'Google rejected the Gemini API key. Check GEMINI_API_KEY in Cloudflare.', 'bad_gemini_key');
+    if (r.status === 403) return fail(502, 'Google refused the request: this API key may not be allowed to use Gemini. Check the key in Google AI Studio.', 'gemini_forbidden');
+    if (r.status === 429) problems.push({ model, code: 'quota', error: `The daily or per-minute Gemini limit for ${model} has been reached.` });
+    else if (r.status === 503) problems.push({ model, code: 'busy', error: `Gemini (${model}) is overloaded right now.` });
+    else if (r.status === 404) problems.push({ model, code: 'model_not_found', error: `Gemini does not know the model "${model}". Open Settings, AI estimates, Check, to see the valid IDs, then set GEMINI_MODEL in Cloudflare.` });
+    else problems.push({ model, code: 'gemini_error', error: `Gemini error (${model}): ${msg}` });
   }
-  return fail(502, lastProblem?.error ?? 'Could not reach Gemini.', lastProblem?.code ?? 'gemini_error');
+  if (!problems.length) return fail(502, 'Could not reach Gemini. Try again.', 'gemini_error');
+  const first = problems[0];
+  const others = problems.slice(1).map((p) => p.model);
+  const tail = others.length
+    ? ` Backup model${others.length > 1 ? 's' : ''} ${others.join(', ')} ${others.length > 1 ? 'were' : 'was'} also tried and failed. Try again in a minute.`
+    : ' No backup model was available to try. Try again in a minute.';
+  return fail(502, `${first.error}${tail}`, first.code, { tried });
 }
