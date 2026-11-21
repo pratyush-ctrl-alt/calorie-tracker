@@ -1,62 +1,73 @@
-/* Calorie Tracker. Dark-first: true black, grouped rounded lists, translucent bars, large titles.
-   Progress is shown as plain horizontal bars in a calm amber / violet / sand palette.
+/* Calorie Tracker. Dark-first graphite with a mint accent, soft rounded cards, translucent bars.
+   Each macro has its own colour (calories mint, protein violet, carbs blue, fat amber, fibre sand),
+   used the same way everywhere: the Diary ring and bars, the review, and the breakdown sheets.
    Light and dark follow the phone. Numbers use tabular figures. No emoji icons. */
 
 :root {
   --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', system-ui, 'Segoe UI', Roboto, sans-serif;
 
   /* light */
-  --bg: #f2f2f7;
+  --bg: #f3f4f1;
   --card: #ffffff;
-  --elev: #f2f2f7;               /* sheets */
+  --elev: #f3f4f1;               /* sheets */
   --text: #000000;
   --text2: #6c6c70;
   --text3: #8e8e93;
   --sep: rgba(60, 60, 67, 0.18);
   --fill: rgba(118, 118, 128, 0.12);
   --seg-on: #ffffff;
-  --blue: #007aff;
+  --blue: #0b8f63;               /* the accent (name kept so older rules follow it) */
+  --accent: #0b8f63;
+  --accent-ink: #ffffff;         /* text on the accent */
+  --accent-soft: rgba(11, 143, 99, 0.12);
   --green: #34c759;
   --red: #ff3b30;
   --orange: #ff9500;
   --yellow: #ffcc00;
-  --bar: rgba(249, 249, 249, 0.8);
+  --bar: rgba(247, 248, 245, 0.82);
   --good: #248a3d;
   --warnc: #a87a00;
   --badc: #d70015;
   --sheet-field: #ffffff;
 
-  /* the three headline metrics. Fat and carbs stay neutral on purpose. */
-  --m-kcal: #e8890c;
+  /* one colour per metric */
+  --m-kcal: #0b8f63;
   --m-protein: #6c5ce7;
-  --m-fibre: #a58b5c;
+  --m-carbs: #2b84d6;
+  --m-fat: #d9851c;
+  --m-fibre: #9a7f4f;
 
-  --radius: 16px;
+  --radius: 20px;
   color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #000000;
-    --card: #1c1c1e;
-    --elev: #1c1c1e;
+    --bg: #0c0e0d;
+    --card: #17191a;
+    --elev: #1b1e1f;
     --text: #ffffff;
     --text2: #98989f;
     --text3: #636366;
     --sep: rgba(84, 84, 88, 0.65);
     --fill: rgba(118, 118, 128, 0.24);
     --seg-on: #636366;
-    --blue: #0a84ff;
+    --blue: #3fdc9f;
+    --accent: #3fdc9f;
+    --accent-ink: #04261a;
+    --accent-soft: rgba(63, 220, 159, 0.14);
     --green: #30d158;
     --red: #ff453a;
     --orange: #ff9f0a;
     --yellow: #ffd60a;
-    --bar: rgba(22, 22, 24, 0.8);
+    --bar: rgba(14, 16, 15, 0.82);
     --good: #30d158;
     --warnc: #ffd60a;
     --badc: #ff453a;
-    --sheet-field: #2c2c2e;
-    --m-kcal: #ffb020;
-    --m-protein: #9d8cff;
+    --sheet-field: #262a2b;
+    --m-kcal: #3fdc9f;
+    --m-protein: #a596ff;
+    --m-carbs: #69b6ff;
+    --m-fat: #ffb85a;
     --m-fibre: #d8c39a;
   }
 }
@@ -215,7 +226,7 @@ button.row:active { background: var(--fill); }
   font-weight: 600; font-size: 16px; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; text-align: center;
 }
 .btn:active { opacity: 0.7; }
-.btn.primary { background: var(--blue); color: #fff; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); }
 .btn.danger { background: var(--red); color: #fff; }
 .btn.danger-outline { color: var(--red); background: var(--fill); }
 .btn.small { min-height: 34px; padding: 0 14px; font-size: 15px; border-radius: 999px; }
@@ -402,3 +413,153 @@ input[type='checkbox'].switch:checked::after { transform: translateX(20px); }
 .v-warn { color: var(--warnc); }
 .v-bad { color: var(--badc); }
 .v-none { color: var(--text); }
+
+/* =====================================================================================================
+   Redesign: Diary (day switcher, ring, macros, day review, meals), Add food, entry detail, breakdown
+   ===================================================================================================== */
+.card { box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.chev.left { transform: rotate(-135deg); }
+.chev.small { display: inline-block; width: 7px; height: 7px; border-width: 2px; margin-left: 7px; vertical-align: 3px; }
+.stack { display: flex; flex-direction: column; gap: 12px; }
+
+/* day switcher */
+.day-switch { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; gap: 4px; padding-top: 2px; }
+.day-arrow { width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--fill); display: inline-flex; align-items: center; justify-content: center; color: var(--text); }
+.day-arrow .chev { border-color: var(--text); margin: 0; }
+.day-arrow .chev.left { margin-left: 4px; }
+.day-arrow .chev:not(.left) { margin-right: 4px; }
+.day-arrow:disabled { opacity: 0.25; cursor: default; }
+.day-center { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; min-width: 0; }
+.day-name { font-size: 28px; font-weight: 750; letter-spacing: -0.01em; line-height: 1.1; }
+.day-date { font-size: 14px; color: var(--text2); white-space: nowrap; }
+.day-date .chev { border-color: var(--text2); }
+/* the native date picker sits invisibly on top of the date, so a tap opens the phone's calendar */
+.day-picker { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; min-height: 0 !important; padding: 0 !important; }
+.day-picker::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.back-today { display: flex; justify-content: center; margin-top: -6px; }
+.back-today .btn { background: var(--accent-soft); color: var(--accent); }
+
+/* hero: ring + eaten/target + four macros */
+.hero { gap: 20px; background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 9%, var(--card)) 0%, var(--card) 55%); }
+.hero-top { display: flex; align-items: center; gap: 20px; }
+.ring-btn { background: none; border: 0; padding: 0; flex: none; border-radius: 50%; }
+.ring { position: relative; }
+.ring-svg { display: block; }
+.ring-track { fill: none; stroke: var(--fill); }
+.ring-fill { fill: none; stroke: var(--m-kcal); stroke-linecap: round; transition: stroke-dasharray 0.7s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.ring-fill.over { stroke: var(--badc); }
+.ring-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.ring-num { font-size: 34px; font-weight: 750; line-height: 1; letter-spacing: -0.02em; }
+.ring-num.over { color: var(--badc); }
+.ring-unit { font-size: 12px; color: var(--text2); font-weight: 600; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+.kcal-line { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.kcal-line > div { display: flex; flex-direction: column; }
+.kl-num { font-size: 24px; font-weight: 700; line-height: 1.1; }
+.kl-lbl { font-size: 13px; color: var(--text2); }
+.macros { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.macro { position: relative; display: flex; flex-direction: column; gap: 8px; text-align: left; border: 0; background: var(--fill); border-radius: 14px; padding: 12px 26px 12px 12px; min-width: 0; color: var(--text); }
+.macro:active { opacity: 0.75; }
+.macro-top { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.macro-name { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text2); }
+.macro-val { font-size: 13px; color: var(--text2); white-space: nowrap; }
+.macro-val strong { font-size: 20px; font-weight: 700; color: var(--text); }
+.macro-val.v-bad strong { color: var(--badc); }
+.macro-val.v-warn strong { color: var(--warnc); }
+.macro-val.v-good strong { color: var(--good); }
+.macro-track { height: 6px; border-radius: 99px; background: var(--fill); overflow: hidden; display: block; }
+.macro-fill { display: block; height: 100%; border-radius: 99px; transition: width 0.6s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.macro-chev { position: absolute; right: 12px; top: 16px; width: 7px; height: 7px; }
+
+/* day review */
+.review-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.verdict { font-size: 13px; font-weight: 600; text-align: right; }
+.verdict.v-good { color: var(--good); }
+.verdict.v-warn { color: var(--warnc); }
+.verdict.v-bad { color: var(--badc); }
+.verdict.v-todo { color: var(--text2); }
+.notes { display: flex; flex-direction: column; }
+.note { display: grid; grid-template-columns: 14px 1fr; gap: 10px; padding: 11px 0; }
+.note + .note { border-top: 0.5px solid var(--sep); }
+.note-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 6px; background: var(--text3); }
+.note.s-good .note-dot { background: var(--good); }
+.note.s-warn .note-dot { background: var(--warnc); }
+.note.s-bad .note-dot { background: var(--badc); }
+.note.s-todo .note-dot { background: transparent; border: 2px solid var(--text3); }
+.note-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.note-title { font-size: 15px; font-weight: 600; line-height: 1.3; }
+.note-metric { display: block; font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 1px; }
+.note.s-good .note-title { font-weight: 500; }
+.note-items { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.note-lead { width: 100%; font-size: 12px; color: var(--text2); }
+.pill { display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%; border: 0; border-radius: 999px; padding: 7px 11px; background: var(--fill); font-size: 13px; text-align: left; color: var(--text); }
+.pill-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.pill-val { color: var(--text2); white-space: nowrap; }
+.empty-day { gap: 6px; }
+
+/* meals */
+.meals { display: flex; flex-direction: column; gap: 18px; }
+.meal { display: flex; flex-direction: column; gap: 6px; }
+.meal .meal-head { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; padding: 0 2px 0 4px; }
+.meal .meal-head h3 { font-size: 17px; font-weight: 700; text-transform: none; letter-spacing: 0; color: var(--text); }
+.meal-kcal { font-size: 14px; color: var(--text2); }
+.meal-add { width: 32px; height: 32px; border-radius: 50%; border: 0; background: var(--accent-soft); color: var(--accent); font-size: 22px; line-height: 1; font-weight: 500; display: inline-flex; align-items: center; justify-content: center; }
+.meal-empty { border: 1.5px dashed var(--sep); background: none; border-radius: 16px; min-height: 52px; color: var(--text2); font-size: 15px; font-weight: 500; }
+.meal-empty:active { background: var(--fill); }
+.meal .entry { grid-template-columns: 1fr auto; }
+
+/* tab bar: the round Add button in the middle */
+.tab-add { position: relative; }
+.add-disc { width: 52px; height: 52px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: inline-flex; align-items: center; justify-content: center; margin-top: -18px; box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 40%, transparent); }
+.add-disc .tab-icon { width: 26px; height: 26px; stroke-width: 2.4; }
+.tab-add[aria-current='page'] .add-disc { box-shadow: 0 0 0 4px var(--accent-soft), 0 6px 18px color-mix(in srgb, var(--accent) 40%, transparent); }
+
+/* Add food */
+.add-head { display: flex; flex-direction: column; gap: 6px; }
+.add-head h1 { font-size: 32px; line-height: 1.1; font-weight: 750; }
+.date-pill { position: relative; align-self: flex-start; display: inline-flex; align-items: center; gap: 2px; padding: 7px 12px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 15px; font-weight: 600; cursor: pointer; }
+.date-pill .muted { color: var(--accent); opacity: 0.75; font-weight: 500; }
+.date-pill .chev { border-color: var(--accent); }
+.mode-tabs { position: sticky; top: calc(44px + env(safe-area-inset-top)); z-index: 6; }
+.mode-tabs .seg-btn { font-size: 13px; min-height: 36px; }
+.mode-tabs { background: var(--card); border-radius: 12px; padding: 3px; }
+.mode-tabs .seg-btn[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink); box-shadow: none; }
+.add-plus { width: 30px; height: 30px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: inline-flex; align-items: center; justify-content: center; font-size: 20px; flex: none; }
+.fav { color: var(--yellow); }
+.previews .section-title { font-size: 20px; }
+
+/* entry detail sheet */
+.ed-head { display: flex; flex-direction: column; gap: 4px; }
+.ed-name { font-size: 22px; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }
+.ed-rows { display: flex; flex-direction: column; gap: 14px; background: var(--sheet-field); border-radius: 16px; padding: 14px; }
+.ed-row { display: flex; flex-direction: column; gap: 6px; }
+.ed-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.ed-label { display: inline-flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; }
+.ed-val { font-size: 17px; font-weight: 700; }
+.share-track { height: 6px; border-radius: 99px; background: var(--fill); overflow: hidden; }
+.share-fill { height: 100%; border-radius: 99px; }
+
+/* breakdown sheet */
+.bd-head { display: flex; flex-direction: column; gap: 2px; }
+.bd-total { font-size: 34px; font-weight: 750; line-height: 1.1; }
+.bd-total small { font-size: 15px; color: var(--text2); font-weight: 500; }
+.bd-target { font-size: 14px; color: var(--text2); }
+.bd-target.over { color: var(--badc); font-weight: 600; }
+.sheet .group { background: var(--sheet-field); }
+.bd-row { align-items: center; }
+.bd-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.bd-name { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+.bd-val { display: flex; flex-direction: column; align-items: flex-end; white-space: nowrap; }
+.bd-val strong { font-size: 18px; }
+.bd-val span { font-size: 12px; color: var(--text2); }
+
+/* Trends: tap a day to open it */
+.tap-row { cursor: pointer; }
+.tap-row:active { background: var(--fill); }
+.day-link { background: none; border: 0; padding: 0; color: var(--accent); font-weight: 600; text-align: left; font-size: inherit; }
+
+@media (max-width: 360px) {
+  .hero-top { gap: 14px; }
+  .ring-num { font-size: 28px; }
+  .mode-tabs .seg-btn { font-size: 12px; }
+}

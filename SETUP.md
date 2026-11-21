@@ -116,8 +116,8 @@ Click **Deploy** / **Save** after adding the variables. For a Worker this takes 
 In the app: **Settings → AI estimates → Check AI estimates**. It should say "AI estimates (photo and text) are ready". If it says Google does not list your model, it also shows the model IDs your key can use: copy one into `GEMINI_MODEL` and redeploy.
 
 ### E5. Use it
-- **Log → Describe a meal**: type or tap **Speak**, say what you ate (amounts help: "exactly 10 g peanuts"), tap **Estimate**.
-- **Log → Add a photo**: take or choose a photo.
+- **+ (Add food) → Describe**: type or tap **Speak**, say what you ate (amounts help: "exactly 10 g peanuts"), tap **Estimate**.
+- **+ (Add food) → Photo**: take or choose a photo.
 
 Either way, check the numbers in the preview cards and tap Save.
 

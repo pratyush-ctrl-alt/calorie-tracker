@@ -17,12 +17,15 @@ Most meals arrive as a single line of text that another AI (Gemini, ChatGPT or C
 
 ## The screens
 
-Tabs: **Today · Log · My Items · Trends · Settings** (naming borrowed from fitness trackers such as Hevy).
+Tabs: **Diary · Trends · (+) Add · My Items · Settings**. The round **+** in the middle opens Add food.
 
-- **Today:** "Left today" as two big numbers (kcal left, g protein to go), horizontal progress bars for calories, protein and fibre, neutral tiles for fat and carbs, a Quick add row and the day's meals.
-- **Log:** paste a line (or type a saved item's name), check the preview, save. Also Quick add, and "Enter numbers" for manual entries.
+- **Diary:** one day at a time. **‹ ›** arrows or a sideways swipe move between days; tapping the date opens a calendar (the last 120 days are kept on the phone). For the day shown:
+  - a **calorie ring** (kcal left, or over) with eaten and target, and **four macro tiles** (protein, carbs, fat, fibre) against their targets. Tap the ring or any tile to see **every item of that day ranked by that nutrient, with its share** of the day's total.
+  - a **Day review** that says, in plain words, which targets were missed and **which items caused it**: what pushed fat over the limit, which calories brought little protein, the biggest calories on an over day, off-plan items. Today (still in progress) says "to go" rather than "short".
+  - the **meals** (Breakfast, Lunch, Snack, Dinner, plus Workout when used), each with its own **+** that opens Add food for that meal and day. Tap an item to see its share of each daily total and target, edit or delete it, or log it again today.
+- **Add food:** tabs for **Describe** (type or speak; AI estimate), **Photo** (AI estimate), **Saved** (My Items, one tap), **Manual** (the numbers form, right there) and **Paste** (a line from another AI). It adds to the day the Diary was showing, which the pill under the title shows and can change. After saving it returns to that day in the Diary.
 - **My Items:** everything you save, with search. Star up to 5 to pin them to Quick add; your most used items fill any free spots.
-- **Trends:** the last 7 days (scorecard, a daily trend chart, day by day) or a month (week by week, the same daily chart for each day of the month, off-plan list). The chart has a picker for **Calories, Protein, Carbs, Fat or Fibre**; the choice is remembered and shared by both views.
+- **Trends:** the last 7 days (scorecard, a daily trend chart, day by day; tap a day to open it in the Diary) or a month (week by week, the same daily chart for each day of the month, off-plan list). The chart has a picker for **Calories, Protein, Carbs, Fat or Fibre**; the choice is remembered and shared by both views.
 - **Settings:** the database connection (collapses once connected), daily targets, CSV export.
 
 Setup steps are in [SETUP.md](SETUP.md).
@@ -44,16 +47,16 @@ Lunch | Dal, rice, bhindi, curd | 720 kcal | 28g P | 95g C | 22g F | 9g Fib
 
 ## AI estimates: describe a meal or add a photo (optional)
 
-Log → **Describe a meal**. Type, or tap **Speak**, what you ate, with amounts where you know them: "50-50 black coffee and milk, very little sugar", "exactly 10 g salted roasted peanuts". Tap **Estimate**. Gemini uses exact quantities as given and assumes a standard Indian serving where none is given (saying so in the note). Each separate food or drink becomes its own card. Edit the description and tap Estimate again to redo it; the new estimate replaces the old lines.
+**+ → Describe**. Type, or tap **Speak**, what you ate, with amounts where you know them: "50-50 black coffee and milk, very little sugar", "exactly 10 g salted roasted peanuts". Tap **Estimate**. Gemini uses exact quantities as given and assumes a standard Indian serving where none is given (saying so in the note). Each separate food or drink becomes its own card. Edit the description and tap Estimate again to redo it; the new estimate replaces the old lines.
 
 - **Speak** uses the browser's own speech-to-text (Chrome on Android; Safari on iPhone, though often not inside a home-screen app). It sends the audio to Google or Apple to turn it into words; only the text reaches this app. Where the button does not appear, the microphone key on the phone's keyboard does the same job.
 
-Log → **Add a photo**. The photo is shrunk on the phone (about 1280 px JPEG, location data removed), sent to the Cloudflare Worker, which asks Gemini for a nutrition estimate. The estimate fills the paste box and the normal preview cards, so **nothing is saved until you tap Save**, and you can edit any number first. "Estimate again" accepts an optional note ("I only ate half").
+**+ → Photo**. The photo is shrunk on the phone (about 1280 px JPEG, location data removed), sent to the Cloudflare Worker, which asks Gemini for a nutrition estimate. The estimate fills the paste box and the normal preview cards, so **nothing is saved until you tap Save**, and you can edit any number first. "Estimate again" accepts an optional note ("I only ate half").
 
 - **Where the key lives:** only in Cloudflare environment variables (`GEMINI_API_KEY`). The app and the repository never contain it.
 - **Who may use it:** the function checks your app token against your Supabase database before it calls Gemini, so strangers cannot spend your Gemini quota.
 - **Setup:** SETUP.md, Part E. In the app, Settings → AI estimates → Check shows whether it is ready and lists the model IDs your key can use.
-- **Model:** default `gemini-3.1-flash-lite`. Set `GEMINI_MODEL` in Cloudflare to change it, or give a comma-separated list to fall over to the next model when one hits its quota.
+- **Model:** default `gemini-3.1-flash-lite`. Set `GEMINI_MODEL` in Cloudflare to change it, or give a comma-separated list tried in order. **Automatic backup:** if every listed model fails (busy, out of quota, unknown, timeout or an unusable answer), the server asks Google which flash/lite models your key can use and tries up to 2 of them, stable before preview, lite first. The app says when a backup model answered.
 - **Privacy:** photos and descriptions are sent to Google to be analysed and are not stored by this app. As I understand Google's terms, content sent through the free tier of the Gemini API may be used to improve Google's products, while paid usage is not. Check Google's current terms if that matters to you.
 - **Accuracy:** it is an estimate from one picture. Portion size and oil are guesses. Treat it as a fast first draft.
 
@@ -133,10 +136,13 @@ Where the brief was ambiguous I picked the simplest option. Say if you want any 
 - **Markers instead of chips:** the old status chips under each day are gone so the columns line up. An orange dot after the date means an off-plan entry that day, and `*` means some carbs, fat or fibre values were missing (counted as 0).
 - **Month chart:** one bar per finished day; today and future days have no bar, consistent with the other Trends numbers.
 
-### Behaviour
+### Diary and Add food (version 3)
 
-- **Today's remaining numbers.** Two big numbers: kcal left (turning orange and reading "kcal over target" when over) and g protein to go. Once the protein target is reached the second number becomes "Met" rather than "over", since exceeding protein is not a problem.
-- **Carbs on Today** is a grams-only tile with no bar, since there is no carbs target.
+- **Why the change:** the old Today screen only showed today, past days were only visible as totals in Trends, and manual entry sat at the bottom of a long Log screen. The Diary makes any day browsable item by item, and Add food puts every way of adding one tap apart.
+- **Day review rules (mine, in `dayReview` in `js/calc.js`, tested):** a note per target, worst first. Calories over the band list the 3 biggest calorie items. Protein short lists "calories that brought little protein" (items of 150 kcal or more with under 2.5 g protein per 100 kcal), or, if there are none, where the protein did come from. Fat over the limit lists the 3 biggest fat sources. Off-plan items are listed by calories. Percentages are shares of the day's total for that nutrient.
+- **Colours on a day in progress:** protein and fibre below target are not shown red on today, only on finished days; fat and calories over are shown at once.
+- **Look:** mint accent on graphite (dark) or warm off-white (light) instead of the iOS blue; one colour per nutrient used consistently in the ring, tiles, review and breakdowns.
+- **Carbs** have no target, so their tile has no bar and they get no review note.
 - **Week and Month use complete days only.** Today is shown separately as "in progress" on Week. For Month I applied the same rule (my choice; the brief only states it for Week): today is not counted in the week-by-week table or averages, but today's off-plan entries do appear in the Off-plan list. "Days logged" is shown as X/Y where Y is the number of finished days in that period.
 - **Month weeks** run Monday to Sunday, clipped to the month, and are labelled by date range. The Total row's averages are over all logged days, not an average of the weekly averages.
 - **Calorie band edges.** "Within ±10%" is exact: 1,833.3 to 2,240.7 kcal, so a day of 1,833 kcal is just outside and 2,240 is just inside. The brief rounds this to 1,833 to 2,241.

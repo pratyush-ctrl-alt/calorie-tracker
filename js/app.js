@@ -7,12 +7,12 @@ import { createItemsView } from './views/items.js';
 import { createTrendsView } from './views/trends.js';
 import { createSettingsView } from './views/settings.js';
 
-// Tab icons: simple strokes in the style of SF Symbols.
+// Tab icons: simple strokes. The middle tab is the round "Add food" button.
 const TABS = [
-  ['today', 'Today', ['M4 6.5h16', 'M4 12h11', 'M4 17.5h6.5']],
-  ['log', 'Log', ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M12 8v8', 'M8 12h8']],
-  ['items', 'My Items', ['M9 6h11', 'M9 12h11', 'M9 18h11', 'M4.5 6h.01', 'M4.5 12h.01', 'M4.5 18h.01']],
+  ['today', 'Diary', ['M6 3.5h12a1.5 1.5 0 0 1 1.5 1.5v14a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 19V5A1.5 1.5 0 0 1 6 3.5z', 'M8.5 8h7', 'M8.5 12h7', 'M8.5 16h4']],
   ['trends', 'Trends', ['M5 20V10', 'M12 20V4', 'M19 20v-7']],
+  ['log', 'Add', ['M12 5v14', 'M5 12h14']],
+  ['items', 'My Items', ['M9 6h11', 'M9 12h11', 'M9 18h11', 'M4.5 6h.01', 'M4.5 12h.01', 'M4.5 18h.01']],
   ['settings', 'Settings', ['M4 7h10', 'M18 7h2', 'M4 17h2', 'M10 17h10', 'M16 4v6', 'M8 14v6']],
 ];
 
@@ -40,12 +40,12 @@ function icon(paths) {
   return svg;
 }
 
-function go(tab) {
+function go(tab, opts) {
   if (!views[tab]) return;
   for (const [id, v] of Object.entries(views)) v.el.hidden = id !== tab;
   tabbar.querySelectorAll('button').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'));
   navTitle.textContent = views[tab].title ?? '';
-  views[tab].onShow?.();
+  views[tab].onShow?.(opts);
   window.scrollTo(0, 0);
   navbar.classList.remove('scrolled');
   try { history.replaceState(null, '', `#${tab}`); } catch { /* ignore */ }
@@ -65,7 +65,9 @@ function renderAll() {
 }
 
 // ---- boot --------------------------------------------------------------------------
-TABS.forEach(([id, label, paths]) => tabbar.append(h('button', { type: 'button', class: 'tab', dataset: { tab: id }, onclick: () => go(id) }, icon(paths), h('span', {}, label))));
+TABS.forEach(([id, label, paths]) => tabbar.append(id === 'log'
+  ? h('button', { type: 'button', class: 'tab tab-add', dataset: { tab: id }, 'aria-label': 'Add food', onclick: () => go(id) }, h('span', { class: 'add-disc' }, icon(paths)))
+  : h('button', { type: 'button', class: 'tab', dataset: { tab: id }, onclick: () => go(id) }, icon(paths), h('span', {}, label))));
 Object.values(views).forEach((v) => { v.el.hidden = true; main.append(v.el); });
 
 store.subscribe((kind) => { if (kind === 'sync') { renderChrome(); views.settings.renderSync(); } else renderAll(); });

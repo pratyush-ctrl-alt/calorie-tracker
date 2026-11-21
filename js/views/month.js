@@ -2,6 +2,7 @@ import { h, todayStr, fmt, fmtDayMonth, fmtShort, monthLabel, parseYmd } from '.
 import { dayStatus, groupByDate, summarize, weeksOfMonth } from '../calc.js';
 import { createTrendCard } from './trend-card.js';
 import * as store from '../store.js';
+import { nav } from '../components.js';
 
 export function createMonthView() {
   const el = h('section', { class: 'view', id: 'view-month', 'aria-label': 'Month' });
@@ -62,8 +63,8 @@ export function createMonthView() {
       off.length
         ? [h('div', { class: 'scroll' }, h('table', { class: 'tbl' },
           h('thead', {}, h('tr', {}, ['Date', 'Slot', 'Name', 'kcal'].map((t) => h('th', { scope: 'col' }, t)))),
-          h('tbody', {}, off.map((e) => h('tr', {},
-            h('th', { scope: 'row' }, fmtShort(e.date)), h('td', {}, e.slot), h('td', {}, e.name), h('td', { class: 'num' }, fmt(e.kcal, 0))))))),
+          h('tbody', {}, off.map((e) => h('tr', { class: 'tap-row', onclick: () => nav.go('today', { date: e.date }) },
+            h('th', { scope: 'row' }, h('button', { class: 'day-link', type: 'button' }, fmtShort(e.date))), h('td', {}, e.slot), h('td', {}, e.name), h('td', { class: 'num' }, fmt(e.kcal, 0))))))),
         h('p', { class: 'muted small' }, `${off.length} off-plan ${off.length === 1 ? 'entry' : 'entries'}, ${fmt(offKcal, 0)} kcal in total (includes today).`)]
         : h('p', { class: 'empty' }, 'No off-plan entries this month.'));
 

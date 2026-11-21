@@ -1,7 +1,8 @@
-import { h, fmt, todayStr } from '../util.js';
+import { h, fmt } from '../util.js';
 import { MAX_FAVORITES } from '../plan.js';
 import { largeTitle, nav, openItemSheet, openQuickLog, starIcon, toast } from '../components.js';
 import * as store from '../store.js';
+import { getDay } from '../day-state.js';
 
 /** My Items: everything you save. Star up to 5 to pin them to Quick add; most used ones fill the rest. */
 export function createItemsView() {
@@ -25,7 +26,7 @@ export function createItemsView() {
     }, starIcon());
     const sub = [`${fmt(item.kcal, 0)} kcal`, `${fmt(item.protein_g)} g protein`, uses ? `used ${uses}×` : '', item.on_plan ? '' : 'off plan'].filter(Boolean).join(' · ');
     return h('div', { class: 'item-row' },
-      h('button', { class: 'row', type: 'button', onclick: () => openQuickLog(item, { onDone: (date) => { if (date === todayStr()) nav.go('today'); } }) },
+      h('button', { class: 'row', type: 'button', onclick: () => openQuickLog(item, { getDate: getDay, onDone: (date) => nav.go('today', { date }) }) },
         h('span', { class: 'row-main' }, h('span', { class: 'row-label' }, item.name), h('span', { class: 'entry-sub' }, sub))),
       star,
       h('button', { class: 'dots', type: 'button', 'aria-label': `Edit ${item.name}`, onclick: () => openItemSheet(item) }, '•••'));

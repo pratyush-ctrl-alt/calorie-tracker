@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { totalsFor, dayStatus, summarize, groupByDate, weekWindow, weeksOfMonth, kcalOnTarget, rate, explainRating, METRICS } from '../js/calc.js';
+import { totalsFor, dayStatus, summarize, groupByDate, weekWindow, weeksOfMonth, kcalOnTarget, rate, explainRating, METRICS, contributors, dayReview } from '../js/calc.js';
 import { DEFAULT_SETTINGS } from '../js/plan.js';
 import { buildEntry, scaleFood, validateEntry, kenkoFields } from '../js/entries.js';
 import { GEMINI_PROMPT } from '../js/prompt.js';
@@ -128,4 +128,57 @@ test('rating follows edited settings, and every metric has an explanation', () =
   assert.equal(rate('fat', 55, custom), 'warn');
   for (const m of Object.keys(METRICS)) assert.ok(explainRating(m, S).length > 10, m);
   assert.match(explainRating('kcal', S), /10%/);
+});
+
+// ---- day review: which items pushed a target off ----------------------------------------------
+const D = '2026-11-20';
+const fatDay = [
+  E(D, { name: 'Paneer butter masala', kcal: 650, protein_g: 22, fat_g: 48, fibre_g: 4 }),
+  E(D, { name: 'Samosa', kcal: 260, protein_g: 4, fat_g: 17, fibre_g: 2, on_plan: false }),
+  E(D, { name: 'Kenko meal', kcal: 580, protein_g: 50, fat_g: 15, fibre_g: 6 }),
+  E(D, { name: 'Black coffee', kcal: 5, protein_g: 0, fat_g: null, fibre_g: 0 }),
+];
+
+test('contributors ranks items by a metric with their share, and keeps unknown values apart', () => {
+  const c = contributors(fatDay, 'fat');
+  assert.equal(c.total, 80);
+  assert.deepEqual(c.rows.map((r) => r.entry.name), ['Paneer butter masala', 'Samosa', 'Kenko meal']);
+  assert.equal(c.rows[0].share, 0.6);
+  assert.deepEqual(c.unknown.map((e) => e.name), ['Black coffee']);
+});
+
+test('dayReview names the items that pushed fat over the limit, worst note first', () => {
+  const notes = dayReview(fatDay, S);
+  const fat = notes.find((n) => n.metric === 'fat');
+  assert.equal(fat.status, 'bad');                       // 80 g > 60 g limit by more than 15%
+  assert.equal(fat.title, '20 g over your 60 g fat limit');
+  assert.deepEqual(fat.items.map((i) => i.entry.name), ['Paneer butter masala', 'Samosa', 'Kenko meal']);
+  assert.equal(notes[0].status, 'bad');
+  assert.ok(notes.findIndex((n) => n.status === 'good') === -1 || notes.findIndex((n) => n.status === 'good') > notes.findIndex((n) => n.status === 'bad'));
+});
+
+test('dayReview: on a finished day, protein short points at calories that brought little protein', () => {
+  const p = dayReview(fatDay, S).find((n) => n.metric === 'protein');
+  assert.equal(p.status, 'bad');                         // 76 g, below 80% of 134
+  assert.match(p.title, /58 g short of your 134 g protein target/);
+  assert.equal(p.lead, 'Calories that brought little protein');
+  assert.deepEqual(p.items.map((i) => i.entry.name), ['Samosa']);   // 4 g protein in 260 kcal
+  assert.equal(p.valueMetric, 'kcal');
+});
+
+test('dayReview: today in progress says "to go" instead of failing, and lists off-plan items', () => {
+  const notes = dayReview(fatDay, S, { inProgress: true });
+  assert.equal(notes.find((n) => n.metric === 'protein').status, 'todo');
+  assert.match(notes.find((n) => n.metric === 'protein').title, /g protein to go/);
+  const plan = notes.find((n) => n.metric === 'plan');
+  assert.equal(plan.title, '1 off-plan item, 260 kcal');
+  assert.equal(plan.items[0].entry.name, 'Samosa');
+});
+
+test('dayReview: a good day is all green, and an empty day has no notes', () => {
+  const good = [E(D, { kcal: 2000, protein_g: 130, fat_g: 50, fibre_g: 32 })];
+  const notes = dayReview(good, S);
+  assert.deepEqual(notes.map((n) => n.status), ['good', 'good', 'good', 'good']);
+  assert.equal(notes.find((n) => n.metric === 'protein').lead, 'Best sources');
+  assert.deepEqual(dayReview([], S), []);
 });

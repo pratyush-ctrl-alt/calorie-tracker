@@ -138,3 +138,105 @@ export function explainRating(metric, s) {
     default: return 'Carbs have no target, so they are not coloured.';
   }
 }
+
+// ---- one day, item by item: who contributed what, and what pushed a target off --------------------
+const FIELD = { kcal: 'kcal', protein: 'protein_g', carbs: 'carbs_g', fat: 'fat_g', fibre: 'fibre_g' };
+export const metricField = (metric) => FIELD[metric];
+
+/**
+ * A day's entries ranked by one metric, with each entry's share of the day's total.
+ * Entries with an unknown value for that metric are returned separately in `unknown`.
+ */
+export function contributors(entries, metric) {
+  const f = FIELD[metric];
+  const live = entries.filter((e) => !e.deleted);
+  const known = live.filter((e) => e[f] !== null && e[f] !== undefined);
+  const total = known.reduce((a, e) => a + e[f], 0);
+  const rows = known
+    .map((e) => ({ entry: e, value: e[f], share: total > 0 ? e[f] / total : 0 }))
+    .sort((a, b) => b.value - a.value);
+  return { total: round1(total), rows, unknown: live.filter((e) => !known.includes(e)) };
+}
+
+/** A daily target to compare a metric with, or null (carbs have none). */
+export function targetFor(metric, s) {
+  return { kcal: s.calorie_target, protein: s.protein_target_g, fat: s.fat_limit_g, fibre: s.fibre_target_g }[metric] ?? null;
+}
+
+const ORDER = { bad: 0, warn: 1, todo: 2, good: 3 };
+const n0 = (x) => Math.round(x).toLocaleString('en-IN');
+const top = (entries, metric, k = 3) => contributors(entries, metric).rows.filter((r) => r.value > 0).slice(0, k);
+
+/**
+ * Plain-English review of one day: for each target, whether it was met and which items caused it.
+ * Returns notes, worst first: { metric, status: 'bad'|'warn'|'todo'|'good', title, lead, items:[{entry,value,share}] }.
+ * `inProgress` (today) turns "short of target" into "to go" instead of a failure.
+ */
+export function dayReview(entries, s, { inProgress = false } = {}) {
+  const live = entries.filter((e) => !e.deleted);
+  if (!live.length) return [];
+  const t = totalsFor(live);
+  const notes = [];
+
+  // Calories
+  const kTarget = s.calorie_target;
+  const kRate = rate('kcal', t.kcal, s);
+  if (t.kcal > kTarget && kRate !== 'good') {
+    notes.push({ metric: 'kcal', status: kRate, title: `${n0(t.kcal - kTarget)} kcal over your ${n0(kTarget)} target`, lead: 'Biggest calories', items: top(live, 'kcal') });
+  } else if (kRate === 'good') {
+    notes.push({ metric: 'kcal', status: 'good', title: `Calories on target: ${n0(t.kcal)} of ${n0(kTarget)}`, lead: '', items: [] });
+  } else if (inProgress) {
+    notes.push({ metric: 'kcal', status: 'todo', title: `${n0(kTarget - t.kcal)} kcal left today`, lead: '', items: [] });
+  } else {
+    notes.push({ metric: 'kcal', status: kRate, title: `${n0(kTarget - t.kcal)} kcal under your ${n0(kTarget)} target`, lead: '', items: [] });
+  }
+
+  // Protein: the best sources, and calories that brought little protein with them
+  const pRate = rate('protein', t.protein, s);
+  const lowProtein = live
+    .filter((e) => (e.kcal ?? 0) >= 150 && e.protein_g !== null && (e.protein_g / e.kcal) * 100 < 2.5)
+    .sort((a, b) => b.kcal - a.kcal).slice(0, 3)
+    .map((e) => ({ entry: e, value: e.kcal, share: t.kcal > 0 ? e.kcal / t.kcal : 0 }));
+  if (pRate === 'good') {
+    notes.push({ metric: 'protein', status: 'good', title: `Protein hit: ${n0(t.protein)} g`, lead: 'Best sources', items: top(live, 'protein') });
+  } else {
+    const short = s.protein_target_g - t.protein;
+    notes.push({
+      metric: 'protein', status: inProgress ? 'todo' : pRate,
+      title: inProgress ? `${n0(short)} g protein to go` : `${n0(short)} g short of your ${n0(s.protein_target_g)} g protein target`,
+      lead: lowProtein.length ? 'Calories that brought little protein' : 'Protein so far came from',
+      items: lowProtein.length ? lowProtein : top(live, 'protein'),
+      valueMetric: lowProtein.length ? 'kcal' : 'protein',
+    });
+  }
+
+  // Fat (a limit, not a target)
+  const fRate = rate('fat', t.fat, s);
+  if (fRate !== 'good') {
+    notes.push({ metric: 'fat', status: fRate, title: `${n0(t.fat - s.fat_limit_g)} g over your ${n0(s.fat_limit_g)} g fat limit`, lead: 'Most fat came from', items: top(live, 'fat') });
+  } else {
+    notes.push({ metric: 'fat', status: 'good', title: `Fat within limit: ${n0(t.fat)} of ${n0(s.fat_limit_g)} g`, lead: '', items: [] });
+  }
+
+  // Fibre
+  const fbRate = rate('fibre', t.fibre, s);
+  if (fbRate === 'good') {
+    notes.push({ metric: 'fibre', status: 'good', title: `Fibre target met: ${n0(t.fibre)} g`, lead: '', items: [] });
+  } else {
+    const short = s.fibre_target_g - t.fibre;
+    notes.push({ metric: 'fibre', status: inProgress ? 'todo' : fbRate, title: inProgress ? `${n0(short)} g fibre to go` : `${n0(short)} g short of your ${n0(s.fibre_target_g)} g fibre target`, lead: '', items: [] });
+  }
+
+  // Off-plan entries
+  const off = live.filter((e) => !e.on_plan);
+  if (off.length) {
+    const kcal = off.reduce((a, e) => a + (e.kcal ?? 0), 0);
+    notes.push({
+      metric: 'plan', status: 'warn', title: `${off.length} off-plan ${off.length === 1 ? 'item' : 'items'}, ${n0(kcal)} kcal`, lead: '',
+      items: off.slice().sort((a, b) => (b.kcal ?? 0) - (a.kcal ?? 0)).slice(0, 3).map((e) => ({ entry: e, value: e.kcal, share: t.kcal > 0 ? (e.kcal ?? 0) / t.kcal : 0 })),
+      valueMetric: 'kcal',
+    });
+  }
+
+  return notes.map((x, i) => ({ valueMetric: x.metric, ...x, i })).sort((a, b) => ORDER[a.status] - ORDER[b.status] || a.i - b.i);
+}

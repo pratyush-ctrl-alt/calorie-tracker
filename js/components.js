@@ -1,7 +1,7 @@
 // Shared UI pieces: navigation hook, toast, bottom sheets, rings, switches, and the sheets used from
 // several screens (entry editor, quick log, item editor).
 
-import { h, svgEl, todayStr, fmt } from './util.js';
+import { h, svgEl, todayStr, fmt, fmtTime12 } from './util.js';
 import { SLOTS } from './plan.js';
 import { buildEntry, validateEntry, itemFields, numOrNull, NUM_FIELDS } from './entries.js';
 import { guessSlot } from './parser.js';
@@ -130,12 +130,17 @@ export function tile({ label, color, value, unit, target, limit = false }) {
 }
 
 // ---- entry editor (edit an entry, or enter one manually) -------------------------------------------------
-export function openEntrySheet({ mode = 'edit', entry = null, date = todayStr(), onDone } = {}) {
+export function openEntrySheet(opts = {}) {
+  return openSheet((opts.mode ?? 'edit') === 'edit' ? 'Edit entry' : 'Enter numbers', (close) => entryForm({ mode: 'edit', ...opts, close }));
+}
+
+/** The entry form itself, so the Add screen can show it inline. `close` runs after a save or delete. */
+export function entryForm({ mode = 'edit', entry = null, date = todayStr(), slot: slotPref = null, onDone, close = () => {} } = {}) {
   const e = entry ?? {
-    name: '', slot: guessSlot(new Date().getHours()), date, time: '', kcal: '', protein_g: '', carbs_g: '', fat_g: '', fibre_g: '',
+    name: '', slot: slotPref ?? guessSlot(new Date().getHours()), date, time: '', kcal: '', protein_g: '', carbs_g: '', fat_g: '', fibre_g: '',
     on_plan: false, note: '',
   };
-  return openSheet(mode === 'edit' ? 'Edit entry' : 'Enter numbers', (close) => {
+  {
     const name = h('input', { type: 'text', value: e.name, autocomplete: 'off', placeholder: 'e.g. Dal, rice, curd' });
     const slot = slotSelect(e.slot);
     const dateIn = h('input', { type: 'date', value: e.date, max: todayStr() });
@@ -194,7 +199,7 @@ export function openEntrySheet({ mode = 'edit', entry = null, date = todayStr(),
       msg,
       h('button', { type: 'submit', class: 'btn primary big block' }, mode === 'edit' ? 'Save changes' : 'Save entry'),
       mode === 'edit' ? h('div', { class: 'danger-zone' }, delBtn, confirmBox) : null);
-  });
+  }
 }
 
 // ---- quick log: pick an item, adjust, save (2 taps for the common case) ----------------------------------------
@@ -273,5 +278,105 @@ export function openItemSheet(item = null) {
     msg,
     h('button', { type: 'submit', class: 'btn primary big block' }, 'Save'),
     delBtn ? h('div', { class: 'danger-zone' }, delBtn, confirmBox) : null);
+  });
+}
+
+// ---- metrics: colours and labels used across the Diary -----------------------------------------------
+export const METRIC_UI = {
+  kcal: { label: 'Calories', unit: 'kcal', color: 'var(--m-kcal)', dp: 0 },
+  protein: { label: 'Protein', unit: 'g', color: 'var(--m-protein)', dp: 0 },
+  carbs: { label: 'Carbs', unit: 'g', color: 'var(--m-carbs)', dp: 0 },
+  fat: { label: 'Fat', unit: 'g', color: 'var(--m-fat)', dp: 0 },
+  fibre: { label: 'Fibre', unit: 'g', color: 'var(--m-fibre)', dp: 0 },
+  plan: { label: 'Plan', unit: 'kcal', color: 'var(--orange)', dp: 0 },
+};
+
+/** A progress ring. `over` paints it red. Text goes in the middle. */
+export function ring({ value, target, size = 148, stroke = 13, over = false, children }) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const pct = target > 0 ? Math.max(0, Math.min(1, value / target)) : 0;
+  const svg = svgEl('svg', { viewBox: `0 0 ${size} ${size}`, width: size, height: size, class: 'ring-svg', 'aria-hidden': 'true' },
+    svgEl('circle', { cx: size / 2, cy: size / 2, r, class: 'ring-track', 'stroke-width': stroke }),
+    svgEl('circle', {
+      cx: size / 2, cy: size / 2, r, class: `ring-fill ${over ? 'over' : ''}`, 'stroke-width': stroke,
+      'stroke-dasharray': `${c * pct} ${c}`, transform: `rotate(-90 ${size / 2} ${size / 2})`,
+    }));
+  return h('div', { class: 'ring', style: `width:${size}px;height:${size}px` }, svg, h('div', { class: 'ring-center' }, children));
+}
+
+/** A thin bar showing a share (0-1). */
+export const shareBar = (share, color) => h('div', { class: 'share-track' }, h('div', { class: 'share-fill', style: `width:${Math.max(2, Math.round(share * 100))}%;background:${color}` }));
+
+const pctTxt = (x) => `${Math.round(x * 100)}%`;
+
+/**
+ * "Who contributed to today's fat?": every entry of the day ranked by one metric, with its share.
+ * `contrib` is calc.contributors(entries, metric); `target` may be null.
+ */
+export function openBreakdown({ metric, contrib, target, dateLabel, onPick }) {
+  const m = METRIC_UI[metric];
+  return openSheet(`${m.label} · ${dateLabel}`, (close) => {
+    const total = contrib.total;
+    const isLimit = metric === 'fat';
+    const head = h('div', { class: 'bd-head' },
+      h('span', { class: 'bd-total num' }, fmt(total, m.dp), h('small', {}, ` ${m.unit}`)),
+      target ? h('span', { class: `bd-target ${total > target && (isLimit || metric === 'kcal') ? 'over' : ''}` },
+        `${isLimit ? 'limit' : 'target'} ${fmt(target, 0)} ${m.unit} · ${pctTxt(total / target)}`) : null);
+    const rows = contrib.rows.length
+      ? h('div', { class: 'group' }, contrib.rows.map((r) => h('button', {
+        class: 'row bd-row', type: 'button', onclick: () => { close(); onPick?.(r.entry); },
+      },
+      h('span', { class: 'bd-main' },
+        h('span', { class: 'bd-name' }, r.entry.name),
+        h('span', { class: 'entry-sub' }, [r.entry.slot, fmtTime12(r.entry.time)].filter(Boolean).join(' · ')),
+        shareBar(r.share, m.color)),
+      h('span', { class: 'bd-val num' }, h('strong', {}, fmt(r.value, m.dp)), h('span', {}, `${pctTxt(r.share)}`)))))
+      : h('p', { class: 'empty' }, 'Nothing logged with this value.');
+    return h('div', { class: 'form' }, head,
+      h('p', { class: 'hint' }, `Every item of the day, biggest ${m.label.toLowerCase()} first. The percentage is its share of the day's total.`),
+      rows,
+      contrib.unknown.length ? h('p', { class: 'hint' }, `No ${m.label.toLowerCase()} value: ${contrib.unknown.map((e) => e.name).join(', ')}.`) : null);
+  });
+}
+
+/** One entry, and what it did to the day: its share of each total and of each target. */
+export function openEntryDetail({ entry, dayEntries, settings, onChanged }) {
+  return openSheet('Entry', (close) => {
+    const sum = (f) => dayEntries.filter((x) => !x.deleted).reduce((a, x) => a + (x[f] ?? 0), 0);
+    const targets = { kcal: settings.calorie_target, protein: settings.protein_target_g, carbs: null, fat: settings.fat_limit_g, fibre: settings.fibre_target_g };
+    const fields = { kcal: 'kcal', protein: 'protein_g', carbs: 'carbs_g', fat: 'fat_g', fibre: 'fibre_g' };
+    const rows = Object.entries(fields).map(([metric, f]) => {
+      const m = METRIC_UI[metric];
+      const v = entry[f];
+      const day = sum(f);
+      const share = v !== null && day > 0 ? v / day : 0;
+      const tgt = targets[metric];
+      const sub = v === null ? 'unknown'
+        : [`${pctTxt(share)} of the day's ${m.label.toLowerCase()}`, tgt ? `${pctTxt(v / tgt)} of your ${metric === 'fat' ? 'limit' : 'target'}` : ''].filter(Boolean).join(' · ');
+      return h('div', { class: 'ed-row' },
+        h('div', { class: 'ed-top' },
+          h('span', { class: 'ed-label' }, h('i', { class: 'dot', style: `background:${m.color}` }), m.label),
+          h('span', { class: 'ed-val num' }, v === null ? '–' : `${fmt(v, metric === 'kcal' ? 0 : 1)} ${m.unit}`)),
+        v !== null ? shareBar(share, m.color) : null,
+        h('span', { class: 'hint' }, sub));
+    });
+    return h('div', { class: 'form' },
+      h('div', { class: 'ed-head' },
+        h('h3', { class: 'ed-name' }, entry.name),
+        h('p', { class: 'muted small' }, [entry.slot, fmtTime12(entry.time), entry.on_plan ? 'on plan' : 'off plan', entry.note].filter(Boolean).join(' · '))),
+      h('div', { class: 'ed-rows' }, rows),
+      h('div', { class: 'row-btns' },
+        h('button', { class: 'btn', type: 'button', onclick: () => { close(); openEntrySheet({ mode: 'edit', entry, onDone: onChanged }); } }, 'Edit or delete'),
+        h('button', {
+          class: 'btn', type: 'button',
+          onclick: () => {
+            const { id, created_at, updated_at, time, ...rest } = entry;
+            store.addEntries([buildEntry({ ...rest }, { date: todayStr() })]);
+            close();
+            toast(`Logged again for today: ${entry.name}`);
+            onChanged?.();
+          },
+        }, 'Log again today')));
   });
 }

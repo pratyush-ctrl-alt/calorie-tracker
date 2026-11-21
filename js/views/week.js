@@ -2,6 +2,7 @@ import { h, todayStr, fmt, fmtShort } from '../util.js';
 import { groupByDate, summarize, weekWindow, totalsFor, rate } from '../calc.js';
 import { createTrendCard, ratingLegend } from './trend-card.js';
 import * as store from '../store.js';
+import { nav } from '../components.js';
 
 /** A number coloured by how it compares with the target: green on target, yellow close, red off target. */
 const cell = (metric, value, s, dp) => h('td', { class: `num v-${rate(metric, value, s) ?? 'none'}` }, fmt(value, dp));
@@ -39,8 +40,8 @@ export function createWeekView() {
       compact: false, period: 'last 7 days',
     });
 
-    const rows = sum.days.slice().reverse().map((d) => h('tr', {},
-      h('th', { scope: 'row' }, fmtShort(d.date),
+    const rows = sum.days.slice().reverse().map((d) => h('tr', { class: 'tap-row', onclick: () => nav.go('today', { date: d.date }) },
+      h('th', { scope: 'row' }, h('button', { class: 'day-link', type: 'button', 'aria-label': `Open ${fmtShort(d.date)} in the Diary` }, fmtShort(d.date)),
         d.offPlan ? h('span', { class: 'dot-off', role: 'img', 'aria-label': 'has an off-plan entry' }) : null,
         d.missing ? h('span', { class: 'lg-star', 'aria-label': 'some values missing' }, '*') : null),
       d.logged
@@ -49,6 +50,7 @@ export function createWeekView() {
         : h('td', { colspan: 5, class: 'muted' }, 'not logged')));
     const table = h('div', { class: 'card' },
       h('h2', { class: 'card-title' }, 'Day by day'),
+      h('p', { class: 'muted small' }, 'Tap a day to see what you ate and what pushed it off target.'),
       ratingLegend({ extra: true }),
       h('table', { class: 'tbl days' },
         h('thead', {}, h('tr', {}, ['Date', 'kcal', 'Protein', 'Carbs', 'Fat', 'Fibre'].map((t, i) => h('th', { scope: 'col', class: i ? 'r' : '' }, t)))),
